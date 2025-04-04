@@ -42,6 +42,9 @@ cols_to_factor <- c("zipcode", "state", "zip_region")
 subset <- subset |> 
   mutate(across(all_of(cols_to_factor), as.factor))
 
+cleaned_df <- subset 
+
+write_csv(cleaned_df, "cleaned_1.csv")
 
 
 glimpse(subset)
