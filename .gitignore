@@ -142,3 +142,4 @@ data/external/*.csv
 data/interim/*.csv
 data/processed/*.csv
 data/raw/*.csv
+data/raw/*.xlsx
