@@ -2,8 +2,10 @@
 output:
   pdf_document: default
   html_document: default
+editor_options: 
+  markdown: 
+    wrap: 72
 ---
-
 
 ---
 title: "OLS Regression of Charitable Contributions on Income"
@@ -34,6 +36,9 @@ library(lmtest)
 library(sandwich)
 library(stargazer)
 library(Metrics)
+library(ggplot2); theme_set(theme_classic())
+library(knitr)
+library(tidyverse)
 ```
 
 ```{r include=FALSE}
@@ -63,80 +68,214 @@ confirmation_df <- df[-exploration_indices, ]
 
 ```
 
-### EDA (To be filled)
+### EDA
 
+```{r, histograms}
+exploration_df %>%
+  ggplot(aes(x = mean_charitable_contributation_per_return)) +
+  geom_histogram(aes(y = stat(count/sum(count)))) +
+  labs(x = "Mean Charitable Contribution per Return", y = "Proportion",
+       title = "Histogram of Mean Charitable Contribution per Return")
+
+exploration_df %>%
+  ggplot(aes(x = mean_agi_per_return)) +
+  geom_histogram(aes(y = stat(count/sum(count)))) +
+  labs(x = "Mean AGI per Return", y = "Proportion",
+       title = "Histogram of Mean AGI per Return")
+
+
+exploration_df %>%
+  ggplot(aes(x = mean_agi_per_return, y = mean_charitable_contributation_per_return)) +
+  geom_point() + 
+  geom_smooth(method = "lm")
+
+exploration_df %>%
+  ggplot(aes(x = mean_agi_per_return, y = mean_charitable_contributation_per_return)) +
+  geom_point() + 
+  geom_smooth(method = "lm", formula = y ~ x + I(x^2))
+
+exploration_df %>%
+  ggplot(aes(x = log(mean_agi_per_return))) +
+  geom_histogram()
+
+exploration_df %>%
+  ggplot(aes(x = mean_dividend_per_dividend_return)) +
+  geom_histogram()
+
+
+exploration_df %>%
+  ggplot(aes(x = mean_capgain_per_capgain_return)) +
+  geom_histogram()
+
+exploration_df %>%
+  ggplot(aes(x = mean_rent_royalty_per_rent_royalty_return)) +
+  geom_histogram()
+
+
+exploration_df %>%
+  ggplot(aes(x = mean_salary_per_salary_return)) +
+  geom_histogram()
+
+
+
+exploration_df %>%
+  ggplot(aes(x = total_net_investment_income_tax_amount)) +
+  geom_histogram()
+
+
+exploration_df %>%
+  ggplot(aes(x = mean_tax_payment_per_return)) +
+  geom_histogram()
+
+```
 
 ### Operationalization
 
-To investigate the factors influencing mean charitable contributions per tax return, our methodology involves employing Ordinary Least Squares (OLS) regression on a dataset that has been split into exploration (30%) and confirmation (70%) sets. The model building process will be conducted exclusively on the confirmation data to develop descriptive relationships, while the exploration set will be used for data exploration and transformation decisions. We will construct a sequence of nine regression models, incrementally adding theoretically relevant predictor variables to assess their impact on the outcome variable, `mean_charitable_contributation_per_return`. Given the established literature on charitable giving, this sequential approach allows us to systematically examine the influence of different economic factors on philanthropic behavior per tax return. To address potential issues of heteroskedasticity, robust standard errors will be calculated for the coefficients of all estimated models, providing more reliable statistical inference.
+To investigate the factors influencing mean charitable contributions per
+tax return, our methodology involves employing Ordinary Least Squares
+(OLS) regression on a dataset that has been split into exploration (30%)
+and confirmation (70%) sets. The model building process will be
+conducted exclusively on the confirmation data to develop descriptive
+relationships, while the exploration set will be used for data
+exploration and transformation decisions. We will construct a sequence
+of nine regression models, incrementally adding theoretically relevant
+predictor variables to assess their impact on the outcome variable,
+`mean_charitable_contributation_per_return`. Given the established
+literature on charitable giving, this sequential approach allows us to
+systematically examine the influence of different economic factors on
+philanthropic behavior per tax return. To address potential issues of
+heteroskedasticity, robust standard errors will be calculated for the
+coefficients of all estimated models, providing more reliable
+statistical inference.
 
-Our model building process begins by establishing the core relationship between income, as measured by `mean_agi_per_return`, and charitable contributions through three initial specifications. Model 1 examines a simple linear relationship. Model 2 introduces a quadratic term for `mean_agi_per_return` to capture potential non-linear effects, such as diminishing or increasing returns to income in charitable giving. Model 3 explores a similar non-linear relationship using the natural logarithm of `mean_agi_per_return` and its squared term, which can be particularly useful given the often skewed distribution of income. Following this, Model 4 incorporates variables that proxy for wealth and the availability of discretionary funds: `mean_dividend_per_dividend_return`, `mean_capgain_per_capgain_return`, and `mean_rent_royalty_per_rent_royalty_return`, based on the hypothesis that individuals with higher levels of investment income and income from assets have a greater capacity for charitable giving. Model 5 then includes `mean_salary_per_salary_return` to examine the independent effect of stable income sources after controlling for overall income and wealth-related income. Finally, Models 6 and 7 incorporate tax-related variables, `total_net_investment_income_tax_amount` and `mean_tax_payment_per_return`, to reflect the potential influence of tax incentives and the benefit of charitable deductions. Models 8 and 9 revisit the use of log-transformed AGI with a quadratic term, both with and without the full set of control variables, to compare the model fit and significance of predictors under this alternative functional form of income. By examining the changes in model fit and the significance of coefficients across these nine specifications on the training data, and subsequently evaluating their predictive performance on the held-out testing data, we aim to provide a comprehensive analysis of the economic factors influencing mean charitable contributions per tax return.
+Our model building process begins by establishing the core relationship
+between income, as measured by `mean_agi_per_return`, and charitable
+contributions through three initial specifications. Model 1 examines a
+simple linear relationship. Model 2 introduces a quadratic term for
+`mean_agi_per_return` to capture potential non-linear effects, such as
+diminishing or increasing returns to income in charitable giving. Model
+3 explores a similar non-linear relationship using the natural logarithm
+of `mean_agi_per_return` and its squared term, which can be particularly
+useful given the often skewed distribution of income. Following this,
+Model 4 incorporates variables that proxy for wealth and the
+availability of discretionary funds:
+`mean_dividend_per_dividend_return`, `mean_capgain_per_capgain_return`,
+and `mean_rent_royalty_per_rent_royalty_return`, based on the hypothesis
+that individuals with higher levels of investment income and income from
+assets have a greater capacity for charitable giving. Model 5 then
+includes `mean_salary_per_salary_return` to examine the independent
+effect of stable income sources after controlling for overall income and
+wealth-related income. Finally, Models 6 and 7 incorporate tax-related
+variables, `total_net_investment_income_tax_amount` and
+`mean_tax_payment_per_return`, to reflect the potential influence of tax
+incentives and the benefit of charitable deductions. Models 8 and 9
+revisit the use of log-transformed AGI with a quadratic term, both with
+and without the full set of control variables, to compare the model fit
+and significance of predictors under this alternative functional form of
+income. By examining the changes in model fit and the significance of
+coefficients across these nine specifications on the training data, and
+subsequently evaluating their predictive performance on the held-out
+testing data, we aim to provide a comprehensive analysis of the economic
+factors influencing mean charitable contributions per tax return.
 
+The below need to be turned into a table
 
-The below need to be turned into a table 
+**Model 1 (Linear Income):** The mean charitable contribution per return
+is modeled as a linear function of the mean adjusted gross income (AGI)
+per return, plus an error term. Formula:
+$$ \text{mean_charitable_contributation_per_return}_i = \beta_0 + \beta_1 \cdot \text{mean_agi_per_return}_i + \epsilon_i $$
 
-**Model 1 (Linear Income):**
-The mean charitable contribution per return is modeled as a linear function of the mean adjusted gross income (AGI) per return, plus an error term.
-Formula: $$ \text{mean\_charitable\_contributation\_per\_return}_i = \beta_0 + \beta_1 \cdot \text{mean\_agi\_per\_return}_i + \epsilon_i $$
+**Model 2 (Polynomial Income - Quadratic):** The mean charitable
+contribution per return is modeled as a quadratic function of the mean
+AGI per return, plus an error term. This includes both a linear and a
+squared term for AGI. Formula:
+$$ \text{mean_charitable_contributation_per_return}_i = \beta_0 + \beta_1 \cdot \text{mean_agi_per_return}_i + \beta_2 \cdot (\text{mean_agi_per_return}_i)^2 + \epsilon_i $$
 
-**Model 2 (Polynomial Income - Quadratic):**
-The mean charitable contribution per return is modeled as a quadratic function of the mean AGI per return, plus an error term. This includes both a linear and a squared term for AGI.
-Formula: $$ \text{mean\_charitable\_contributation\_per\_return}_i = \beta_0 + \beta_1 \cdot \text{mean\_agi\_per\_return}_i + \beta_2 \cdot (\text{mean\_agi\_per\_return}_i)^2 + \epsilon_i $$
+**Model 3 (Log Income with Quadratic Term):** The mean charitable
+contribution per return is modeled as a quadratic function of the
+natural logarithm of the mean AGI per return, plus an error term. This
+includes both a linear and a squared term for the log of AGI. Formula:
+$$ \text{mean_charitable_contributation_per_return}_i = \beta_0 + \beta_1 \cdot \ln(\text{mean_agi_per_return}_i) + \beta_2 \cdot (\ln(\text{mean_agi_per_return}_i))^2 + \epsilon_i $$
 
-**Model 3 (Log Income with Quadratic Term):**
-The mean charitable contribution per return is modeled as a quadratic function of the natural logarithm of the mean AGI per return, plus an error term. This includes both a linear and a squared term for the log of AGI.
-Formula: $$ \text{mean\_charitable\_contributation\_per\_return}_i = \beta_0 + \beta_1 \cdot \ln(\text{mean\_agi\_per\_return}_i) + \beta_2 \cdot (\ln(\text{mean\_agi\_per\_return}_i))^2 + \epsilon_i $$
+**Model 4 (Polynomial Income + Wealth):** The mean charitable
+contribution per return is modeled as a function of the mean AGI per
+return (linear and quadratic terms) and several wealth/investment income
+variables: mean dividend per dividend return, mean capital gain per
+capital gain return, and mean rent/royalty per rent/royalty return, plus
+an error term. Formula:
+$$ \text{mean_charitable_contributation_per_return}_i = \beta_0 + \beta_1 \cdot \text{mean_agi_per_return}_i + \beta_2 \cdot (\text{mean_agi_per_return}_i)^2 + \beta_3 \cdot \text{mean_dividend_per_dividend_return}_i + \beta_4 \cdot \text{mean_capgain_per_capgain_return}_i + \beta_5 \cdot \text{mean_rent_royalty_per_rent_royalty_return}_i + \epsilon_i $$
 
-**Model 4 (Polynomial Income + Wealth):**
-The mean charitable contribution per return is modeled as a function of the mean AGI per return (linear and quadratic terms) and several wealth/investment income variables: mean dividend per dividend return, mean capital gain per capital gain return, and mean rent/royalty per rent/royalty return, plus an error term.
-Formula: $$ \text{mean\_charitable\_contributation\_per\_return}_i = \beta_0 + \beta_1 \cdot \text{mean\_agi\_per\_return}_i + \beta_2 \cdot (\text{mean\_agi\_per\_return}_i)^2 + \beta_3 \cdot \text{mean\_dividend\_per\_dividend\_return}_i + \beta_4 \cdot \text{mean\_capgain\_per\_capgain\_return}_i + \beta_5 \cdot \text{mean\_rent\_royalty\_per\_rent\_royalty\_return}_i + \epsilon_i $$
+**Model 5 (Polynomial Income + Wealth + Salary):** The mean charitable
+contribution per return is modeled as a function of the mean AGI per
+return (linear and quadratic terms), the wealth/investment income
+variables (as in Model 4), and the mean salary per salary return, plus
+an error term. Formula:
+$$ \text{mean_charitable_contributation_per_return}_i = \beta_0 + \beta_1 \cdot \text{mean_agi_per_return}_i + \beta_2 \cdot (\text{mean_agi_per_return}_i)^2 + \beta_3 \cdot \text{mean_dividend_per_dividend_return}_i + \beta_4 \cdot \text{mean_capgain_per_capgain_return}_i + \beta_5 \cdot \text{mean_rent_royalty_per_rent_royalty_return}_i + \beta_6 \cdot \text{mean_salary_per_salary_return}_i + \epsilon_i $$
 
-**Model 5 (Polynomial Income + Wealth + Salary):**
-The mean charitable contribution per return is modeled as a function of the mean AGI per return (linear and quadratic terms), the wealth/investment income variables (as in Model 4), and the mean salary per salary return, plus an error term.
-Formula: $$ \text{mean\_charitable\_contributation\_per\_return}_i = \beta_0 + \beta_1 \cdot \text{mean\_agi\_per\_return}_i + \beta_2 \cdot (\text{mean\_agi\_per\_return}_i)^2 + \beta_3 \cdot \text{mean\_dividend\_per\_dividend\_return}_i + \beta_4 \cdot \text{mean\_capgain\_per\_capgain\_return}_i + \beta_5 \cdot \text{mean\_rent\_royalty\_per\_rent\_royalty\_return}_i + \beta_6 \cdot \text{mean\_salary\_per\_salary\_return}_i + \epsilon_i $$
+**Model 6 (Polynomial Income + Wealth + Salary + NIIT):** The mean
+charitable contribution per return is modeled as a function of the mean
+AGI per return (linear and quadratic terms), the wealth/investment
+income variables, the mean salary per salary return, and the total net
+investment income tax amount, plus an error term. Formula:
+$$ \text{mean_charitable_contributation_per_return}_i = \beta_0 + \beta_1 \cdot \text{mean_agi_per_return}_i + \beta_2 \cdot (\text{mean_agi_per_return}_i)^2 + \beta_3 \cdot \text{mean_dividend_per_dividend_return}_i + \beta_4 \cdot \text{mean_capgain_per_capgain_return}_i + \beta_5 \cdot \text{mean_rent_royalty_per_rent_royalty_return}_i + \beta_6 \cdot \text{mean_salary_per_salary_return}_i + \beta_7 \cdot \text{total_net_investment_income_tax_amount}_i + \epsilon_i $$
 
-**Model 6 (Polynomial Income + Wealth + Salary + NIIT):**
-The mean charitable contribution per return is modeled as a function of the mean AGI per return (linear and quadratic terms), the wealth/investment income variables, the mean salary per salary return, and the total net investment income tax amount, plus an error term.
-Formula: $$ \text{mean\_charitable\_contributation\_per\_return}_i = \beta_0 + \beta_1 \cdot \text{mean\_agi\_per\_return}_i + \beta_2 \cdot (\text{mean\_agi\_per\_return}_i)^2 + \beta_3 \cdot \text{mean\_dividend\_per\_dividend\_return}_i + \beta_4 \cdot \text{mean\_capgain\_per\_capgain\_return}_i + \beta_5 \cdot \text{mean\_rent\_royalty\_per\_rent\_royalty\_return}_i + \beta_6 \cdot \text{mean\_salary\_per\_salary\_return}_i + \beta_7 \cdot \text{total\_net\_investment\_income\_tax\_amount}_i + \epsilon_i $$
+**Model 7 (Polynomial Income + Wealth + Salary + NIIT + MTAX):** The
+mean charitable contribution per return is modeled as a function of the
+mean AGI per return (linear and quadratic terms), the wealth/investment
+income variables, the mean salary per salary return, the total net
+investment income tax amount, and the mean tax payment per return, plus
+an error term. Formula:
+$$ \text{mean\_charitable\_contributation\_per\_return}_i = \beta_0 + \beta_1 \cdot \text{mean\_agi\_per\_return}_i + \beta_2 \cdot (\text{mean\_agi\_per\_return}_i)^2 + \beta_3 \cdot \text{mean\_dividend\_per\_dividend\_return}_i + \beta_4 \cdot \text{mean\_capgain\_per\_capgain\_return}_i + \beta_5 \cdot \text{mean\_rent\_royalty\_per\_rent\_royalty\_return}_i + \beta_6 \cdot \text{mean\_salary\_per\_salary\_return}_i + \beta_7 \cdot \text{total\_net\_investment\_income\_tax\_amount}_i + \beta_8 \cdot \text{mean\_tax\_payment\_per\_return}_i + \epsilon_i $$
 
-**Model 7 (Polynomial Income + Wealth + Salary + NIIT + MTAX):**
-The mean charitable contribution per return is modeled as a function of the mean AGI per return (linear and quadratic terms), the wealth/investment income variables, the mean salary per salary return, the total net investment income tax amount, and the mean tax payment per return, plus an error term.
-Formula: $$ \text{mean\_charitable\_contributation\_per\_return}_i = \beta_0 + \beta_1 \cdot \text{mean\_agi\_per\_return}_i + \beta_2 \cdot (\text{mean\_agi\_per\_return}_i)^2 + \beta_3 \cdot \text{mean\_dividend\_per\_dividend\_return}_i + \beta_4 \cdot \text{mean\_capgain\_per\_capgain\_return}_i + \beta_5 \cdot \text{mean\_rent\_royalty\_per\_rent\_royalty\_return}_i + \beta_6 \cdot \text{mean\_salary\_per\_salary\_return}_i + \beta_7 \cdot \text{total\_net\_investment\_income\_tax\_amount}_i + \beta_8 \cdot \text{mean\_tax\_payment\_per\_return}_i + \epsilon_i $$
+**Model 8 (Log Income + Polynomial + Wealth):** The mean charitable
+contribution per return is modeled as a function of the natural
+logarithm of the mean AGI per return (linear and quadratic terms) and
+the wealth/investment income variables, plus an error term. Formula:
+$$ \text{mean\_charitable\_contributation\_per\_return}_i = \beta_0 + \beta_1 \cdot \ln(\text{mean\_agi\_per\_return}_i) + \beta_2 \cdot (\ln(\text{mean\_agi\_per\_return}_i))^2 + \beta_3 \cdot \text{mean\_dividend\_per\_dividend\_return}_i + \beta_4 \cdot \text{mean\_capgain\_per\_capgain\_return}_i + \beta_5 \cdot \text{mean\_rent\_royalty\_per\_rent\_royalty\_return}_i + \epsilon_i $$
 
-**Model 8 (Log Income + Polynomial + Wealth):**
-The mean charitable contribution per return is modeled as a function of the natural logarithm of the mean AGI per return (linear and quadratic terms) and the wealth/investment income variables, plus an error term.
-Formula: $$ \text{mean\_charitable\_contributation\_per\_return}_i = \beta_0 + \beta_1 \cdot \ln(\text{mean\_agi\_per\_return}_i) + \beta_2 \cdot (\ln(\text{mean\_agi\_per\_return}_i))^2 + \beta_3 \cdot \text{mean\_dividend\_per\_dividend\_return}_i + \beta_4 \cdot \text{mean\_capgain\_per\_capgain\_return}_i + \beta_5 \cdot \text{mean\_rent\_royalty\_per\_rent\_royalty\_return}_i + \epsilon_i $$
-
-**Model 9 (Log Income + Polynomial + All Other Controls):**
-The mean charitable contribution per return is modeled as a function of the natural logarithm of the mean AGI per return (linear and quadratic terms) and all other control variables (wealth/investment income, salary, and tax variables), plus an error term.
-Formula: $$ \text{mean\_charitable\_contributation\_per\_return}_i = \beta_0 + \beta_1 \cdot \ln(\text{mean\_agi\_per\_return}_i) + \beta_2 \cdot (\ln(\text{mean\_agi\_per\_return}_i))^2 + \beta_3 \cdot \text{mean\_dividend\_per\_dividend\_return}_i + \beta_4 \cdot \text{mean\_capgain\_per\_capgain\_return}_i + \beta_5 \cdot \text{mean\_rent\_royalty\_per\_rent\_royalty\_return}_i + \beta_6 \cdot \text{mean\_salary\_per\_salary\_return}_i + \beta_7 \cdot \text{total\_net\_investment\_income\_tax\_amount}_i + \beta_8 \cdot \text{mean\_tax\_payment\_per\_return}_i + \epsilon_i $$
-
-
+**Model 9 (Log Income + Polynomial + All Other Controls):** The mean
+charitable contribution per return is modeled as a function of the
+natural logarithm of the mean AGI per return (linear and quadratic
+terms) and all other control variables (wealth/investment income,
+salary, and tax variables), plus an error term. Formula:
+$$ \text{mean\_charitable\_contributation\_per\_return}_i = \beta_0 + \beta_1 \cdot \ln(\text{mean\_agi\_per\_return}_i) + \beta_2 \cdot (\ln(\text{mean\_agi\_per\_return}_i))^2 + \beta_3 \cdot \text{mean\_dividend\_per\_dividend\_return}_i + \beta_4 \cdot \text{mean\_capgain\_per\_capgain\_return}_i + \beta_5 \cdot \text{mean\_rent\_royalty\_per\_rent\_royalty\_return}_i + \beta_6 \cdot \text{mean\_salary\_per\_salary\_return}_i + \beta_7 \cdot \text{total\_net\_investment\_income\_tax\_amount}_i + \beta_8 \cdot \text{mean\_tax\_payment\_per\_return}_i + \epsilon_i $$
 
 ### OLS Assumptions
 
-
 #### IID
 
-
-
-
-
-The use of IRS Statistics of Income (SOI) data presents some potential challenges to the IID assumption, though our transformation of the data attempts to mitigate these concerns. The raw data is aggregated at the ZIP code level, which inherently introduces a degree of spatial dependence. We address this by allocating the ZIP code level data to individual residential addresses using HUD USPS ZIP Code Crosswalk files and residential ratios, aiming to better reflect the distribution of individuals. While this transformation helps to normalize the data and reduce the impact of ZIP code-level aggregation, it's still plausible that some spatial correlation remains. Specifically, observations within the same county or neighboring areas might exhibit correlation due to shared socioeconomic factors, local policies, or regional economic conditions. This potential spatial autocorrelation could violate the independence assumption. Furthermore, while the IRS sampling process is stratified, the underlying heterogeneity of individual tax returns may still lead to concerns about the 'identically distributed' aspect. For instance, even within a county, the distribution of income and other financial behaviors can vary.
-
+The use of IRS Statistics of Income (SOI) data presents some potential
+challenges to the IID assumption, though our transformation of the data
+attempts to mitigate these concerns. The raw data is aggregated at the
+ZIP code level, which inherently introduces a degree of spatial
+dependence. We address this by allocating the ZIP code level data to
+individual residential addresses using HUD USPS ZIP Code Crosswalk files
+and residential ratios, aiming to better reflect the distribution of
+individuals. While this transformation helps to normalize the data and
+reduce the impact of ZIP code-level aggregation, it's still plausible
+that some spatial correlation remains. Specifically, observations within
+the same county or neighboring areas might exhibit correlation due to
+shared socioeconomic factors, local policies, or regional economic
+conditions. This potential spatial autocorrelation could violate the
+independence assumption. Furthermore, while the IRS sampling process is
+stratified, the underlying heterogeneity of individual tax returns may
+still lead to concerns about the 'identically distributed' aspect. For
+instance, even within a county, the distribution of income and other
+financial behaviors can vary.
 
 #### BLP Exist
 
+The BLP, by definition, assumes a linear relationship between the
+dependent variable and the independent variables. We can assess the
+appropriateness of this assumption by:
 
+Scatter Plots: Visualizing the relationship between each independent
+variable and the dependent variable using scatter plots. Look for
+non-linear patterns.
 
-
-
-The BLP, by definition, assumes a linear relationship between the dependent variable and the independent variables. We can assess the appropriateness of this assumption by:
-
-Scatter Plots: Visualizing the relationship between each independent variable and the dependent variable using scatter plots. Look for non-linear patterns.
-
-Residual Analysis: After estimating a linear model, examine the residuals for non-linear patterns.  For example, a scatter plot of residuals against predicted values might reveal a curved pattern.
-
+Residual Analysis: After estimating a linear model, examine the
+residuals for non-linear patterns. For example, a scatter plot of
+residuals against predicted values might reveal a curved pattern.
 
 ### Model Building
 
@@ -144,116 +283,296 @@ Residual Analysis: After estimating a linear model, examine the residuals for no
 # Model 1: Simple OLS (Income)
 model1 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return, data = confirmation_df)
 robust_summary_model1 <- coeftest(model1, vcov = vcovHC(model1, type = "HC3"))
-print("Summary of Model 1 (Simple OLS with Robust SE):")
-print(summary(model1))
-print("\nCoefficients (with Robust Standard Errors) - Model 1:")
-print(robust_summary_model1)
-cat("\n")
+# print("Summary of Model 1 (Simple OLS with Robust SE):")
+# print(summary(model1))
+# print("\nCoefficients (with Robust Standard Errors) - Model 1:")
+# print(robust_summary_model1)
+# cat("\n")
 ```
 
 ```{r include=FALSE}
 # Model 2: Polynomial Income (Quadratic)
 model2 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return + I(mean_agi_per_return^2), data = confirmation_df)
 robust_summary_model2 <- coeftest(model2, vcov = vcovHC(model2, type = "HC3"))
-print("Summary of Model 2 (Polynomial Income with Robust SE):")
-print(summary(model2))
-print("\nCoefficients (with Robust Standard Errors) - Model 2:")
-print(robust_summary_model2)
-cat("\n")
+# print("Summary of Model 2 (Polynomial Income with Robust SE):")
+# print(summary(model2))
+# print("\nCoefficients (with Robust Standard Errors) - Model 2:")
+# print(robust_summary_model2)
+# cat("\n")
 ```
 
 ```{r include=FALSE}
 # Model 3: Log Income with Quadratic Term
 model3 <- lm(mean_charitable_contributation_per_return ~ log(mean_agi_per_return) + I(log(mean_agi_per_return)^2), data = confirmation_df)
 robust_summary_model3 <- coeftest(model3, vcov = vcovHC(model3, type = "HC3"))
-print("Summary of Model 3 (Log Income with Quadratic Term with Robust SE):")
-print(summary(model3))
-print("\nCoefficients (with Robust Standard Errors) - Model 3:")
-print(robust_summary_model3)
-cat("\n")
+# print("Summary of Model 3 (Log Income with Quadratic Term with Robust SE):")
+# print(summary(model3))
+# print("\nCoefficients (with Robust Standard Errors) - Model 3:")
+# print(robust_summary_model3)
+# cat("\n")
 ```
 
 ```{r include=FALSE}
 # Model 4: Adding Wealth/Investment Income
 model4 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return + I(mean_agi_per_return^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return, data = confirmation_df)
 robust_summary_model4 <- coeftest(model4, vcov = vcovHC(model4, type = "HC3"))
-print("Summary of Model 4 (Adding Wealth/Investment Income with Robust SE):")
-print(summary(model4))
-print("\nCoefficients (with Robust Standard Errors) - Model 4:")
-print(robust_summary_model4)
-cat("\n")
+# print("Summary of Model 4 (Adding Wealth/Investment Income with Robust SE):")
+# print(summary(model4))
+# print("\nCoefficients (with Robust Standard Errors) - Model 4:")
+# print(robust_summary_model4)
+# cat("\n")
 ```
 
 ```{r include=FALSE}
 # Model 5: Adding Stable Income (Salary)
 model5 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return + I(mean_agi_per_return^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return + mean_salary_per_salary_return, data = confirmation_df)
 robust_summary_model5 <- coeftest(model5, vcov = vcovHC(model5, type = "HC3"))
-print("Summary of Model 5 (Adding Stable Income with Robust SE):")
-print(summary(model5))
-print("\nCoefficients (with Robust Standard Errors) - Model 5:")
-print(robust_summary_model5)
-cat("\n")
-```
-
-```{r}
-
+# print("Summary of Model 5 (Adding Stable Income with Robust SE):")
+# print(summary(model5))
+# print("\nCoefficients (with Robust Standard Errors) - Model 5:")
+# print(robust_summary_model5)
+# cat("\n")
 ```
 
 ```{r include=FALSE}
 # Model 6: Adding Tax-Related Variable (Investment Income Tax)
 model6 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return + I(mean_agi_per_return^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return + mean_salary_per_salary_return + total_net_investment_income_tax_amount, data = confirmation_df)
 robust_summary_model6 <- coeftest(model6, vcov = vcovHC(model6, type = "HC3"))
-print("Summary of Model 6 (Adding Investment Income Tax with Robust SE):")
-print(summary(model6))
-print("\nCoefficients (with Robust Standard Errors) - Model 6:")
-print(robust_summary_model6)
-cat("\n")
+robust_summary_model6
+# print("Summary of Model 6 (Adding Investment Income Tax with Robust SE):")
+# print(summary(model6))
+# print("\nCoefficients (with Robust Standard Errors) - Model 6:")
+# print(robust_summary_model6)
+# cat("\n")
 ```
 
 ```{r include=FALSE}
 # Model 7: Adding Another Tax-Related Variable (Tax Payment)
 model7 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return + I(mean_agi_per_return^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return + mean_salary_per_salary_return + total_net_investment_income_tax_amount + mean_tax_payment_per_return, data = confirmation_df)
 robust_summary_model7 <- coeftest(model7, vcov = vcovHC(model7, type = "HC3"))
-print("Summary of Model 7 (Adding Tax Payment with Robust SE):")
-print(summary(model7))
-print("\nCoefficients (with Robust Standard Errors) - Model 7:")
-print(robust_summary_model7)
-cat("\n")
+# print("Summary of Model 7 (Adding Tax Payment with Robust SE):")
+# print(summary(model7))
+# print("\nCoefficients (with Robust Standard Errors) - Model 7:")
+# print(robust_summary_model7)
+# cat("\n")
 ```
 
 ```{r include=FALSE}
 # Model 8: Log Income with Quadratic Term and Wealth/Investment Income
 model8 <- lm(mean_charitable_contributation_per_return ~ log(mean_agi_per_return) + I(log(mean_agi_per_return)^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return, data = confirmation_df)
 robust_summary_model8 <- coeftest(model8, vcov = vcovHC(model8, type = "HC3"))
-print("Summary of Model 8 (Log Income and Wealth/Investment Income with Robust SE):")
-print(summary(model8))
-print("\nCoefficients (with Robust Standard Errors) - Model 8:")
-print(robust_summary_model8)
-cat("\n")
+# print("Summary of Model 8 (Log Income and Wealth/Investment Income with Robust SE):")
+# print(summary(model8))
+# print("\nCoefficients (with Robust Standard Errors) - Model 8:")
+# print(robust_summary_model8)
+# cat("\n")
 ```
 
 ```{r include=FALSE}
 # Model 9: Log Income with Quadratic Term and All Other Variables
 model9 <- lm(mean_charitable_contributation_per_return ~ log(mean_agi_per_return) + I(log(mean_agi_per_return)^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return + mean_salary_per_salary_return + total_net_investment_income_tax_amount + mean_tax_payment_per_return, data = confirmation_df)
 robust_summary_model9 <- coeftest(model9, vcov = vcovHC(model9, type = "HC3"))
-print("Summary of Model 9 (Log Income and All Other Variables with Robust SE):")
-print(summary(model9))
-print("\nCoefficients (with Robust Standard Errors) - Model 9:")
-print(robust_summary_model9)
-cat("\n")
+robust_summary_model9
+# print("Summary of Model 9 (Log Income and All Other Variables with Robust SE):")
+# print(summary(model9))
+# print("\nCoefficients (with Robust Standard Errors) - Model 9:")
+# print(robust_summary_model9)
+# cat("\n")
+```
+
+```{r, include = F, building robust SEs}
+se1 <- vcovHC(model1, type = "HC3")
+rse1 <- sqrt(diag(se1))
+
+se2 <- vcovHC(model2, type = "HC3")
+rse2 <- sqrt(diag(se2))
+
+se3 <- vcovHC(model3, type = "HC3")
+rse3 <- sqrt(diag(se3))
+
+se4 <- vcovHC(model4, type = "HC3")
+rse4 <- sqrt(diag(se4))
+
+se5 <- vcovHC(model5, type = "HC3")
+rse5 <- sqrt(diag(se5))
+
+se6 <- vcovHC(model6, type = "HC3")
+rse6 <- sqrt(diag(se6))
+
+se7 <- vcovHC(model7, type = "HC3")
+rse7 <- sqrt(diag(se7))
+
+se8 <- vcovHC(model8, type = "HC3")
+rse8 <- sqrt(diag(se8))
+
+se9 <- vcovHC(model9, type = "HC3")
+rse9 <- sqrt(diag(se9))
+```
+
+```{r, building stargazer}
+m1 <- model1
+m2 <- model2
+m3 <- model3
+m4 <- model4
+m5 <- model5
+m6 <- model6
+m7 <- model7
+m8 <- model8
+m9 <- model9
+
+show_F_in_two_lines <- function(stargazer) {
+  # `Stringr` works better than base's regex 
+  require(stringr)
+
+  # If you remove `capture.output()`, not only the modified LaTeX code 
+  # but also the original code would show up
+  stargazer <- stargazer |>
+    capture.output()
+
+  # Reuse the index in which F-statistics are displayed
+  position_F <- str_which(stargazer, "F Statistic")
+
+  # Extract only F-statistics
+  Fs <- stargazer[position_F] |>
+    str_replace_all("\\(.*?\\)", "")
+
+  # Extract only df values and make a new line for them
+  dfs <- stargazer[position_F] |>
+    str_extract_all("\\(.*?\\)") |>
+    unlist() |>
+    (
+      \(dfs)
+      paste0(" & ", dfs, collapse = "")
+    )() |>
+    paste0(" \\\\")
+
+  # Reuse table elements that are specified
+  # after the index of F-statistics
+  after_Fs <- stargazer[-seq_len(position_F)]
+
+  c(
+    stargazer[seq_len(position_F - 1)],
+    Fs,
+    dfs,
+    after_Fs
+  ) |>
+    cat(sep = "\n")
+}
+
+summary(m5)
+cov_labels <- c("mean AGI", "mean AGI**2", "log(mean AGI)", 
+                "log(mean AGI**2", "mean dividend", "mean capgain", "mean rent royalty",
+                "mean salary",  "Intercept")
+
+
+cov_labels2 <- c("mean AGI", "mean AGI**2", "log(mean AGI)", 
+                "log(mean AGI**2", "mean dividend", "mean capgain", "mean rent royalty",
+                "mean salary", "net investment income", "mean tax payment", "Intercept")
+
+stargazer(m1, m2, m3, m4, m5, type = "latex",
+          out = "stargazertable.tex",
+          se = list(se1, se2, se3, se4, se5),
+          header = F,
+          font.size = "tiny",
+          table.placement = "t",
+          column.sep.width = ".001pt",
+          omit.stat = c("ser", "rsq"),
+          covariate.labels = cov_labels,
+          dep.var.caption = "Dependent Variable: mean charitable contribution",
+          dep.var.labels.include = F,
+          float = F,
+          digits = 3,
+          notes = c("Robust standard errors are displayed.", "The covariate names omit per unit (e.g., per return) due to space limit.")) %>%
+  show_F_in_two_lines()
+  
+
+stargazer(m1, m6, m7, m8, m9, type = "latex",
+          se = list(se1, se6, se7, se8, se9),
+          header = F,
+          font.size = "tiny",
+          table.placement = "b",
+          column.sep.width = ".001pt",
+          column.labels = c("(1)", "(6)", "(7)", "(8)", "(9)"),
+          model.numbers = F,
+          omit.stat = c("ser", "rsq"),
+          covariate.labels = cov_labels2,
+          dep.var.caption = "Dependent Variable: mean charitable contribution",
+          dep.var.labels.include = F,
+          float = F,
+          digits = 3,
+          notes = c("Robust standard errors are displayed.", "The covariate names omit per unit (e.g., per return) due to space limit.")) %>%
+  show_F_in_two_lines()
+
+
+# are we going to use rsq or adjusted rsq?
 ```
 
 ### Results & Discussion
 
+The results from our regression modeling strongly support our initial
+hypothesis of a non-linear relationship between income (specifically
+mean AGI) and charitable giving. All nine models demonstrate statistical
+significance overall (p-value \< 2.2e-16), indicating they explain a
+significant portion of the variation in mean charitable contributions
+per return. However, the models vary in their explanatory power, as
+measured by R-squared. Models 4, 5, 6, 7, 8, and 9 exhibit substantially
+higher R-squared values (around 0.78 to 0.81) compared to Models 1, 2,
+and 3 (R-squared between 0.59 and 0.71). This suggests that including
+wealth/investment income, salary, and tax-related variables
+significantly improves the model's ability to explain charitable
+contributions. The adjusted R-squared values tell a similar story, with
+Models 4-9 performing better. Many predictors are statistically
+significant (p \< 0.05) across the models; however, some variables, like
+mean_rent_royalty_per_rent_royalty_return and
+mean_tax_payment_per_return, are often not significant, or only
+marginally so.
 
+Based on explanatory power, and statistical significance, Model 5
+appears to be a strong candidate for the "best" model. Model 5 has a
+high R-squared (0.8122) and adjusted R-squared (0.8116), indicating that
+it explains a large portion of the variance in charitable contributions.
+All predictors in Model 5 are statistically significant, including
+mean_agi_per_return, I(mean_agi_per_return\^2),
+mean_dividend_per_dividend_return, mean_capgain_per_capgain_return,
+mean_rent_royalty_per_rent_royalty_return, and
+mean_salary_per_salary_return. While Models 6, 7, and 9 have slightly
+higher R-squared, Model 5 achieves a good balance between explanatory
+power and model complexity, as the addition of tax variables in those
+models does not substantially increase explanatory power, and those tax
+variables are not consistently significant.
 
-The results from our regression modeling strongly support our initial hypothesis of a non-linear relationship between income (specifically mean AGI) and charitable giving. All nine models demonstrate statistical significance overall (p-value < 2.2e-16), indicating they explain a significant portion of the variation in mean charitable contributions per return. However, the models vary in their explanatory power, as measured by R-squared. Models 4, 5, 6, 7, 8, and 9 exhibit substantially higher R-squared values (around 0.78 to 0.81) compared to Models 1, 2, and 3 (R-squared between 0.59 and 0.71). This suggests that including wealth/investment income, salary, and tax-related variables significantly improves the model's ability to explain charitable contributions. The adjusted R-squared values tell a similar story, with Models 4-9 performing better. Many predictors are statistically significant (p < 0.05) across the models; however, some variables, like mean_rent_royalty_per_rent_royalty_return and mean_tax_payment_per_return, are often not significant, or only marginally so.
-
-
-Based on explanatory power, and statistical significance, Model 5 appears to be a strong candidate for the "best" model. Model 5 has a high R-squared (0.8122) and adjusted R-squared (0.8116), indicating that it explains a large portion of the variance in charitable contributions. All predictors in Model 5 are statistically significant, including mean_agi_per_return, I(mean_agi_per_return^2), mean_dividend_per_dividend_return, mean_capgain_per_capgain_return, mean_rent_royalty_per_rent_royalty_return, and mean_salary_per_salary_return. While Models 6, 7, and 9 have slightly higher R-squared, Model 5 achieves a good balance between explanatory power and model complexity, as the addition of tax variables in those models does not substantially increase explanatory power, and those tax variables are not consistently significant.
-
-
-Model 5 suggests that charitable contributions are influenced by a combination of income, wealth/investment income, and salary. The relationship between Adjusted Gross Income (AGI) and charitable contributions is non-linear. The negative coefficient for mean_agi_per_return and the positive coefficient for I(mean_agi_per_return^2) indicate an inverted U-shaped relationship. At lower income levels, charitable contributions may decrease slightly as income increases, but beyond a certain point, contributions increase at an increasing rate. For example, consider two hypothetical taxpayers: Taxpayer A with an AGI of $50,000$, and Taxpayer B with an AGI of $100,000$. According to the model, Taxpayer B is predicted to donate more than Taxpayer A, but the increase in donation amount is not directly proportional to the income increase. As income increases further, the model predicts a more substantial increase in charitable giving. Both dividend income (mean_dividend_per_dividend_return) and capital gains (mean_capgain_per_capgain_return) have a positive and significant effect on charitable giving. Higher returns from dividends and capital gains are associated with increased charitable contributions. If a taxpayer's dividend income increases by $1,000$, their predicted charitable contributions increase by approximately $60.83$. Similarly, a $1,000$ increase in capital gains is associated with an $8.47$ increase in predicted charitable contributions. Salary (mean_salary_per_salary_return) also has a positive and significant effect; a $1,000$ increase in salary is associated with an $18.40$ increase in predicted charitable contributions.In broader terms, the results suggest that charitable giving is a complex behavior influenced by multiple factors. While income plays a role, wealth and stable income (salary) also have significant impacts. This has implications for fundraising strategies, which might target individuals with high income, investment returns, and stable employment. The non-linear relationship with AGI suggests that the impact of income on giving varies across income levels.
+Model 5 suggests that charitable contributions are influenced by a
+combination of income, wealth/investment income, and salary. The
+relationship between Adjusted Gross Income (AGI) and charitable
+contributions is non-linear. The negative coefficient for
+mean_agi_per_return and the positive coefficient for
+I(mean_agi_per_return\^2) indicate an inverted U-shaped relationship. At
+lower income levels, charitable contributions may decrease slightly as
+income increases, but beyond a certain point, contributions increase at
+an increasing rate. For example, consider two hypothetical taxpayers:
+Taxpayer A with an AGI of $50,000$, and Taxpayer B with an AGI of
+$100,000$. According to the model, Taxpayer B is predicted to donate
+more than Taxpayer A, but the increase in donation amount is not
+directly proportional to the income increase. As income increases
+further, the model predicts a more substantial increase in charitable
+giving. Both dividend income (mean_dividend_per_dividend_return) and
+capital gains (mean_capgain_per_capgain_return) have a positive and
+significant effect on charitable giving. Higher returns from dividends
+and capital gains are associated with increased charitable
+contributions. If a taxpayer's dividend income increases by $1,000$,
+their predicted charitable contributions increase by approximately
+$60.83$. Similarly, a $1,000$ increase in capital gains is associated
+with an $8.47$ increase in predicted charitable contributions. Salary
+(mean_salary_per_salary_return) also has a positive and significant
+effect; a $1,000$ increase in salary is associated with an $18.40$
+increase in predicted charitable contributions.In broader terms, the
+results suggest that charitable giving is a complex behavior influenced
+by multiple factors. While income plays a role, wealth and stable income
+(salary) also have significant impacts. This has implications for
+fundraising strategies, which might target individuals with high income,
+investment returns, and stable employment. The non-linear relationship
+with AGI suggests that the impact of income on giving varies across
+income levels.
 
 ```{r}
 
