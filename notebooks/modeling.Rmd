@@ -66,7 +66,7 @@ confirmation_df <- df[-exploration_indices, ]
 ### EDA (To be filled)
 
 
-### Methodology
+### Operationalization
 
 To investigate the factors influencing mean charitable contributions per tax return, our methodology involves employing Ordinary Least Squares (OLS) regression on a dataset that has been split into exploration (30%) and confirmation (70%) sets. The model building process will be conducted exclusively on the confirmation data to develop descriptive relationships, while the exploration set will be used for data exploration and transformation decisions. We will construct a sequence of nine regression models, incrementally adding theoretically relevant predictor variables to assess their impact on the outcome variable, `mean_charitable_contributation_per_return`. Given the established literature on charitable giving, this sequential approach allows us to systematically examine the influence of different economic factors on philanthropic behavior per tax return. To address potential issues of heteroskedasticity, robust standard errors will be calculated for the coefficients of all estimated models, providing more reliable statistical inference.
 
@@ -122,10 +122,20 @@ Formula: $$ \text{mean\_charitable\_contributation\_per\_return}_i = \beta_0 + \
 
 
 
+The use of IRS Statistics of Income (SOI) data presents some potential challenges to the IID assumption, though our transformation of the data attempts to mitigate these concerns. The raw data is aggregated at the ZIP code level, which inherently introduces a degree of spatial dependence. We address this by allocating the ZIP code level data to individual residential addresses using HUD USPS ZIP Code Crosswalk files and residential ratios, aiming to better reflect the distribution of individuals. While this transformation helps to normalize the data and reduce the impact of ZIP code-level aggregation, it's still plausible that some spatial correlation remains. Specifically, observations within the same county or neighboring areas might exhibit correlation due to shared socioeconomic factors, local policies, or regional economic conditions. This potential spatial autocorrelation could violate the independence assumption. Furthermore, while the IRS sampling process is stratified, the underlying heterogeneity of individual tax returns may still lead to concerns about the 'identically distributed' aspect. For instance, even within a county, the distribution of income and other financial behaviors can vary.
+
+
 #### BLP Exist
 
 
 
+
+
+The BLP, by definition, assumes a linear relationship between the dependent variable and the independent variables. We can assess the appropriateness of this assumption by:
+
+Scatter Plots: Visualizing the relationship between each independent variable and the dependent variable using scatter plots. Look for non-linear patterns.
+
+Residual Analysis: After estimating a linear model, examine the residuals for non-linear patterns.  For example, a scatter plot of residuals against predicted values might reveal a curved pattern.
 
 
 ### Model Building
@@ -237,7 +247,7 @@ cat("\n")
 
 
 
-The results from our regression modeling and validation strongly support our initial hypothesis of a non-linear relationship between income (specifically mean AGI) and charitable giving. All nine models demonstrate statistical significance overall (p-value < 2.2e-16), indicating they explain a significant portion of the variation in mean charitable contributions per return. However, the models vary in their explanatory power, as measured by R-squared. Models 4, 5, 6, 7, 8, and 9 exhibit substantially higher R-squared values (around 0.78 to 0.81) compared to Models 1, 2, and 3 (R-squared between 0.59 and 0.71). This suggests that including wealth/investment income, salary, and tax-related variables significantly improves the model's ability to explain charitable contributions. The adjusted R-squared values tell a similar story, with Models 4-9 performing better. Many predictors are statistically significant (p < 0.05) across the models; however, some variables, like mean_rent_royalty_per_rent_royalty_return and mean_tax_payment_per_return, are often not significant, or only marginally so.
+The results from our regression modeling strongly support our initial hypothesis of a non-linear relationship between income (specifically mean AGI) and charitable giving. All nine models demonstrate statistical significance overall (p-value < 2.2e-16), indicating they explain a significant portion of the variation in mean charitable contributions per return. However, the models vary in their explanatory power, as measured by R-squared. Models 4, 5, 6, 7, 8, and 9 exhibit substantially higher R-squared values (around 0.78 to 0.81) compared to Models 1, 2, and 3 (R-squared between 0.59 and 0.71). This suggests that including wealth/investment income, salary, and tax-related variables significantly improves the model's ability to explain charitable contributions. The adjusted R-squared values tell a similar story, with Models 4-9 performing better. Many predictors are statistically significant (p < 0.05) across the models; however, some variables, like mean_rent_royalty_per_rent_royalty_return and mean_tax_payment_per_return, are often not significant, or only marginally so.
 
 
 Based on explanatory power, and statistical significance, Model 5 appears to be a strong candidate for the "best" model. Model 5 has a high R-squared (0.8122) and adjusted R-squared (0.8116), indicating that it explains a large portion of the variance in charitable contributions. All predictors in Model 5 are statistically significant, including mean_agi_per_return, I(mean_agi_per_return^2), mean_dividend_per_dividend_return, mean_capgain_per_capgain_return, mean_rent_royalty_per_rent_royalty_return, and mean_salary_per_salary_return. While Models 6, 7, and 9 have slightly higher R-squared, Model 5 achieves a good balance between explanatory power and model complexity, as the addition of tax variables in those models does not substantially increase explanatory power, and those tax variables are not consistently significant.
