@@ -180,7 +180,7 @@ county_level_irs_data <- allocated_data |>
   ) 
 
 
-#Normalization by
+#Proportion Normalization
 county_level_irs_data <- county_level_irs_data |>
   mutate(
     #Total return normalizations
@@ -221,7 +221,7 @@ county_level_irs_data <- county_level_irs_data |>
     )
   )
          
-#Check the nuew data set
+#Check the new data set
 summary(county_level_irs_data)
 
 # type and sample of obs
