@@ -20,4 +20,4 @@ exploration_indices <- sample(1:n_rows, size = exploration_size, replace = FALSE
 exploration_df <- df[exploration_indices, ]
 confirmation_df <- df[-exploration_indices, ]
 
-
+head(exploration_df)

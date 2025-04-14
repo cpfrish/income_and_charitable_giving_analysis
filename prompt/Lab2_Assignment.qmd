@@ -1,0 +1,530 @@
+---
+title:  "Lab 2: Description Using Models"
+subtitle: "This will be a descriptive subtitle." 
+date: 04/15/2025
+date-format: long 
+author: 
+ - name: Fatema Alsaleh 
+   email: cpfrish@berkeley.edu
+   affiliations: 
+   - name: UC Berkeley, School of Information
+     address: 102 South Hall Drive
+     city: Berkeley, CA 
+     postal-code: 94720
+ - name: Colin Frishberg
+   email: cpfrish@berkeley.edu
+   affiliations: 
+   - name: UC Berkeley, School of Information 
+     address: 102 South Hall Drive
+     city: Berkeley, CA 
+     postal-code: 94720
+ - name: WooJung Kim
+   email: woojung_kim@berkeley.edu
+   affiliations: 
+   - name: UC Berkeley, School of Information
+     address: 102 South Hall Drive
+     city: Berkeley, CA 
+     postal-code: 94720
+format: 
+  html: default
+  pdf: 
+    documentclass: scrartcl
+toc: false 
+colorlinks: true
+cap-locaiton: bottom
+execute: 
+  echo: false 
+  warning: false 
+  message: false 
+bibliography: lab2_references.bib
+citeproc: true
+biblio-title: References
+link-citations: true
+abstract: | 
+  In this position, you can include the short abstract of your report.
+---
+
+```{r}
+# rm(list = ls())
+```
+
+```{r}
+library(tidyverse)
+library(patchwork)
+
+library(sandwich) 
+library(stargazer)
+
+library(lmtest)
+```
+
+```{r set plotting theme}
+theme_set(theme_classic())
+```
+
+```{r}
+get_robust_se <- function(vcov) { 
+  se_ <- sqrt(diag(vcov))
+  return(se_)
+  }
+```
+
+## Modeling
+
+You are required to create at least two regression models aligned with the top-level goal of description.
+
+1.  The first model should be the simplest credible model. The purpose of the model here is to provide a single number representing the average strength of the relationship without conditioning on other features. This models facilitates a test of the hypothesis that there is no overall relationship.
+2.  Further models should investigate how the descriptive story adapts as you add additional $X$ variables or transformations variables in the regression. The main purpose is to more closely describe the shape of the relationship in question, leading to more human understanding or insight. You may use transformations (e.g. logs, exponents and polynomials) to better capture the shape of the relationship, indicator variables (e.g. age \> 18) to capture interesting discontinuities where they may exist, and interactions between variables to test conditional relationships.
+
+For example, if you were to be investigating the gender wage gap, you might first estimate a model that examines the wages of people who identify as belonging to different gender groups. However, since you believe the story here is more interesting than an simple, overall difference in wages between gender groups, additional models might include additional measures for sector, experience, and education in order to tell a fuller picture of the wage gap.
+
+## Plots, Figures, and Tables
+
+Since the goal of this report is describing a joint distribution, you *should* use the visualization and summarizing tools that are available to you to convey your meaning. All plots, figures, and tables should be certain to convey meaning, should have a descriptive caption, and should be written about in the prose of your report. We, personally, design our whole paper around the plots, figures and tables that we are going to include – drawing versions by hand that we insert in the page, and including "dummy tables" that are just squiggles of lines/text, but that have a known purpose.
+
+For example, we might have a hand-drawn placeholder that is, "distribution of wages on the y-axis, grouped by years of education on the x-axis, and colored by gender identification," and a squiggle-table that is "regression of wages on education and gender, including a test for interaction."
+
+## Final Report
+
+Your final report should document your analysis, communicating your findings in a way that is technically precise, clear, and persuasive.
+
+Page limits:
+
+-   Main report: 5 pages
+-   Appendix: 2 additional pages
+
+You must meet these page limits using standard `pdf_document` output in a `.Rmd` file, or in a `documentclass: scrartcl` in a `.qmd` file. (This assignment prompt has been generated as a `scrartcl`).
+
+The two-page appendix is intended for extra information that will help your instructor assess your model building process. Please include the following elements:
+
+1.  **A Link to your Data Source.** If you used specialized code to access your data, please include that here. Please make sure your instructor has the ability to access the data.
+2.  **A List of Model Specifications you Tried.** We are interested in seeing how you arrived at your final model. In just a sentence, please provide a reason or something that you learned from each specification.
+3.  **A Residuals-vs-Fitted-values Plot.** Please generate this plot for your final model that includes variable transformations. Your instructor will use this plot to assess how well you have captured the shape of the relationship between your X and your Y variable. For example, if there is a clear parabolic pattern in your residuals-vs-fitted plot, that is a signal that you should have included a square term.
+
+### 1. Introduction
+
+Are Americans with higher incomes more generous than Americans with lower incomes? Giving USA’s Annual Report on Philanthropy for the Year 2023 reported that individual donors gave an estimated \$374.4 billion in charitable contributions, accounting for 67% of a total of \$557.16 billion given \[1\]. With such a significant economic impact, a substantial body of research has sought to understand the intricacies of the relationship between an individual and their propensity to donate. Studies have explored the impact of various socioeconomic factors on charitable giving such as income inequality \[2\], underlying motivations such as altruism, warm glow or social pressure \[3\] and even suggested philanthropy may be having a reverse effect on wealth redistribution \[4\]. As income inequality over the last half-century has risen dramatically across the world, and particularly in the US over the past half century \[5\] a growing body of work has emerged to describe the relationship between income and donations. Despite a unanimous consensus among researchers that the amount donated increases with individuals’ incomes, existing research reveals inconsistent findings on how the proportion of income donated is related to income as highlighted in a recent literature review of 26 studies conducted on this question \[6\]. As Berkeley students, we are motivated by a “commitment to contributing to a better world” \[7\], and by providing our findings to this question we hope to add to an increasingly salient corpus of philanthropic research on income related giving behavior to be used by economists and policy makers seeking to mediate increasing wealth inequality.
+
+Drawing from Neumayr & Pennerstorfer’s findings on the generosity of Americans \[6\], we hypothesize that the relationship between income and proportion of income donated is non-linear. Specifically, we predict a U-shaped relationship where both the lowest and highest income Americans donate a larger proportion of their income than median income Americans. To model this predicted parabolic relationship, we will use an OLS model keeping our parameters linear while applying a logarithmic transformation on income and its quadratic term to model our estimated relationship.
+
+### 2. Description of the Data Source
+
+The data source we have chosen to use is the IRS’ Statistics of Income (SOI) program’s ZIP Code data for the tax year 2022. This data set aggregates (at the ZIP code level) individual income tax returns ( with variables assigned to the various items in the 1040 form) filed with the Internal Revenue Service (IRS) during the 12-month period of January 1, 2023 to December 31, 2023. There are 27,690 observations of 165 variables which the IRS samples from the master file system containing the over 200 million tax returns collected each year, compiling statistics based on stratified probability samples of tax or information returns \[8\].
+
+We recognize the following important limitations of our analysis due to limitations in the underlying data.
+
+1.  The IRS Data does not represent the full U.S. population because many individuals are not required to file an individual income tax return. Therefore our results will not be appropriate for generalizations of the US population and we may be excluding a significant number of very low income individuals who donate to charity.
+2.  Due to anonymity measures taken by the IRS, some US zip codes will not be represented in our study so our results equally will not be appropriate for ZIP code generalization. We omit these ZIP codes as part of our analysis which is a reduction of 102 rows.
+3.  Although we take many steps to normalize the data, we do acknowledge that by using aggregated data we do run a risk of ecological fallacy.
+4.  Poorer households are more likely to take the standard deduction rather than itemise charitable donations \[6\] which means that charitable giving is likely to be under-reported for lower income groups.
+
+### 3. Data Wrangling
+
+To normalize the data and avoid the common pitfall of using ZIP codes for analysis \[9\] we’ve chosen to merge the ZIP codes with US Census Bureau county geographies using the Housing and Urban Development’s HUD USPS -ZIP Crosswalk file for the 4th quarter of 2022 \[10\]. We've also calculated proportional statistics such as agi per return etc. as a method of standardization, and excluded counties containing less than 1,000 returns to limit potential bias from small population areas. Since we are interested in individuals, and not businesses, we will use the provided residential ratio (from HUD file) to allocate ZIP code level data to residential addresses taking into account both the spatial distribution of population, and the spatial distribution of residences. Although not used in our model, we added groups regarding the number of returns to explore how the relationships between our main variables of interest may differ across these groups. The final data set ready for the analysis contains 2,983 observations with 23 variables, which will be further divided into exploration (30%) and confirmation (70%) sets.
+
+```{r, data wrangling part 1}
+#Load IRS 2022 ZipCode level Statistics of Income data set
+irs <- read_csv("../data/raw/irs_no_agi_raw.csv")
+#Load HUD Crosswalk file which maps Zips -> Counties including allocation weights
+hud <- readxl::read_xlsx("../data/external/zip_county_122022.xlsx")
+
+
+#filter out US territories from HUD data set
+hud <- hud |>
+  filter(!USPS_ZIP_PREF_STATE %in% c("AS", "GU", "MP", "PR", "VI"))
+
+#rename columns to facilitate join with irs
+hud <- hud |>
+  rename(ZIPCODE = ZIP, county_fips = COUNTY) |>
+  rename_all(tolower) |>
+  mutate(state_fips_hud = substr(county_fips, 1, 2))
+
+#check how many Zips span multiple counties (require allocation after join)
+# hud |>
+#   group_by(zipcode) |>
+#   summarise(county_count = n_distinct(county_fips)) |>
+#   filter(county_count > 1) |>
+#   arrange(desc(county_count))
+
+#looks like 11K one to many zip -> county allocations we need to perform
+
+#clean up irs keeping target variables
+irs <- irs |>
+  mutate(
+    zipcode = ZIPCODE,
+    state_fips_irs = STATEFIPS,
+    total_charitable_contb = A19700,
+    agi = A00100,
+    num_of_returns = N1,
+    net_investment_income_tax = A85300,
+    net_cap_gains_less_loss = A01000,
+    num_returns_net_cap_gains_less_loss = N01000,
+    num_returns_rent_and_royalty = N25870,
+    total_rent_and_royalty = A25870,
+    ord_div_amount = A00600,
+    num_returns_ord_dividens = N00600,
+    state = STATE,
+    total_tax_payments_amount = A10600,
+    salaries_and_wages_amnt = A00200,
+    num_salaries_and_wages = N00200,
+    zip_region = substr(ZIPCODE, 1, 3),
+    .keep = "none"
+  )  |>
+  filter(!zipcode %in% c('00000', '99999')) 
+
+
+
+#join
+county_level_irs_data <- left_join(irs, hud, by = "zipcode")
+
+# check for NAs
+# county_level_irs_data |> filter(is.na(county_fips)) #none that is good
+
+#check allocation targets again, slightly less at 10.6K
+# county_level_irs_data |>
+#   group_by(zipcode) |>
+#   summarise(county_count = n_distinct(county_fips)) |>
+#   filter(county_count > 1) |>
+#   arrange(desc(county_count))
+
+#sense check comparing state_fips between each data source
+
+county_level_irs_data <- county_level_irs_data |>
+  mutate(
+    state_fips_match_strict = case_when(
+      # Both NA -> considered a match here
+      is.na(state_fips_irs) & is.na(state_fips_hud) ~ TRUE,
+      # One NA, one not -> Mismatch
+      is.na(state_fips_irs) | is.na(state_fips_hud) ~ FALSE,
+      # Both have values and are equal -> Match
+      state_fips_irs == state_fips_hud            ~ TRUE,
+      # Both have values and are unequal -> Mismatch
+      TRUE                                        ~ FALSE
+    )
+  )
+
+# Count the explicit matches and mismatches
+# print(county_level_irs_data |> count(state_fips_match_strict))
+
+# Count NAs
+# print(county_level_irs_data |> count(is.na(state_fips_irs), is.na(state_fips_hud)))
+
+# View only the rows definitively flagged as mismatches
+# print(
+#   county_level_irs_data |>
+#     filter(!state_fips_match_strict) |>
+#     select(zipcode, county_fips, state_fips_irs, state_fips_hud)
+# )
+
+#Looks like an error in the HUD crosswalk file where ZIP 20736 is being
+#attributed to Yuma County AZ but should be in MD. The other mismatch is expected
+#based on methodology of HUD Crosswalk 
+
+# filtering out that row before allocation and aggregation
+combined_irs_hud_filtered <- county_level_irs_data |>
+  filter(!(zipcode == "20736" & county_fips == "04025"))
+
+#Select rows we are interested in, and reorganize chr vars to front of DF
+
+combined_irs_hud_filtered <- combined_irs_hud_filtered |>
+  select(!state_fips_match_strict)
+
+combined_irs_hud_filtered <- combined_irs_hud_filtered |>
+  relocate(where(is.character), .before = 1)
+
+
+
+## Step 2: Now we make use of the allocation ratio columns (specifically RES_RATIO)
+
+allocated_data <- combined_irs_hud_filtered |>
+  mutate(# Multiply each IRS variable by the Residential allocation ratio
+    across(
+      c(
+        agi,
+        num_of_returns,
+        total_charitable_contb,
+        net_investment_income_tax,
+        net_cap_gains_less_loss,
+        num_returns_net_cap_gains_less_loss,
+        num_returns_rent_and_royalty,
+        total_rent_and_royalty,
+        ord_div_amount,
+        num_returns_ord_dividens,
+        total_tax_payments_amount,
+        salaries_and_wages_amnt,
+        num_salaries_and_wages
+      ),
+      ~ . * res_ratio,
+      .names = "{.col}_allocated"
+    ))
+
+
+
+#Now we aggregate at county level
+
+
+county_level_irs_data <- allocated_data |>
+  # Group by the unique county identifier
+  group_by(county_fips) |>
+  # Summarise by summing the allocated values for each county
+  summarise(
+    # Count and Main Predictor
+    total_returns = sum(num_of_returns_allocated, na.rm = TRUE),
+    total_agi_amount = sum(agi_allocated, na.rm = TRUE),
+    
+    # Salaries and Wages
+    total_salaries_wages_amount = sum(salaries_and_wages_amnt_allocated, na.rm = TRUE),
+    total_salaries_wages_returns = sum(num_salaries_and_wages_allocated, na.rm = TRUE),
+    
+    # Ordinary Dividends
+    total_ordinary_dividends_amount = sum(ord_div_amount_allocated, na.rm = TRUE),
+    total_ordinary_dividends_returns = sum(num_returns_ord_dividens_allocated, na.rm = TRUE),
+    
+    # Net Capital Gains less Loss
+    total_net_capital_gains_amount = sum(net_cap_gains_less_loss_allocated, na.rm = TRUE),
+    total_net_capital_gains_returns = sum(num_returns_net_cap_gains_less_loss_allocated, na.rm = TRUE),
+    
+    # (Outcome) Charitable Contributions
+    total_charitable_contributions_amount = sum(total_charitable_contb_allocated, na.rm = TRUE),
+    
+    # Net Investment Income Tax
+    total_net_investment_income_tax_amount = sum(net_investment_income_tax_allocated, na.rm = TRUE),
+    
+    # Rent and Royalty Income
+    total_rent_royalty_amount = sum(total_rent_and_royalty_allocated, na.rm = TRUE),
+    total_rent_royalty_returns = sum(num_returns_rent_and_royalty_allocated, na.rm = TRUE),
+    
+    # Total Tax Payments
+    total_tax_payments_amount = sum(total_tax_payments_amount_allocated, na.rm = TRUE),
+    
+    # Keep the state FIPS (should be unique per county_fips)
+    state_fips = first(state_fips_hud),
+    # Use the state FIPS from the HUD data context
+    
+    .groups = 'drop' # Ungroup after summarising
+  ) 
+
+
+
+#Proportion Normalization
+county <- county_level_irs_data |>
+  mutate(
+    #Total return normalizations
+    mean_agi_per_return = ifelse(total_returns > 0, total_agi_amount / total_returns, 0),
+    mean_charitable_contributation_per_return = ifelse(
+      total_returns > 0,
+      total_charitable_contributions_amount / total_returns,
+      0
+    ),
+    mean_tax_payment_per_return = ifelse(total_returns > 0, total_tax_payments_amount / total_returns, 0),
+    
+    #Specific return normalizations
+    mean_salary_per_salary_return = ifelse(
+      total_salaries_wages_returns > 0,
+      total_salaries_wages_amount / total_salaries_wages_returns,
+      0
+    ),
+    
+    
+    mean_dividend_per_dividend_return = ifelse(
+      total_ordinary_dividends_returns > 0,
+      total_ordinary_dividends_amount / total_ordinary_dividends_returns,
+      0
+    ),
+    
+    
+    mean_capgain_per_capgain_return = ifelse(
+      total_net_capital_gains_returns > 0,
+      total_net_capital_gains_amount / total_net_capital_gains_returns,
+      0
+    ),
+    
+    
+    mean_rent_royalty_per_rent_royalty_return = ifelse(
+      total_rent_royalty_returns > 0,
+      total_rent_royalty_amount / total_rent_royalty_returns,
+      0
+    )
+  )
+```
+
+```{r, data wrangling part 2}
+
+# summary(county$total_returns)
+# skewness(county$total_returns) #12.56
+#Data is significantly right skewed
+
+# Grouping
+
+# 1. Define the lower bound threshold of number of returns
+#    Choosing 1000 here as an example
+lower_bound_threshold <- 1000
+
+# 2. Define the quartile breakpoints based on your summary statistics
+#    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.
+#      2    4534   11339   49301   30542 4566771
+q1_breakpoint <- 4534
+median_breakpoint <- 11339
+q3_breakpoint <- 30542
+
+# for later plotting note
+group_note <- paste0("Note: Breakpoints are inclusive-exclusive: \n1,000 (0%), ", q1_breakpoint, " (25%), ", median_breakpoint, " (50%), and ", q3_breakpoint, " (75%).")
+# Cleaning
+
+# Create a new data frame with the filter and the new group column
+grouped_county <- county %>%
+  
+  # Step 1: Apply the lower bound filter first: counties with less than 1,000 returns are filtered out
+  filter(total_returns >= lower_bound_threshold) %>%
+  
+  # Step 2: Create new grouping column
+  mutate(
+    return_group = case_when(
+      # Group 1: Smallest group (between lower bound and Q1)
+      total_returns >= lower_bound_threshold &
+        total_returns < q1_breakpoint ~ "0-25%",
+      
+      # Group 2: Between Q1 and Median
+      total_returns >= q1_breakpoint &
+        total_returns < median_breakpoint ~ "25-50%",
+      
+      # Group 3: Between Median and Q3
+      total_returns >= median_breakpoint &
+        total_returns < q3_breakpoint ~ "50-75%",
+      
+      # Group 4: Largest group (Q3 and above)
+      total_returns >= q3_breakpoint ~ "75-100%",
+      
+      # Group X: failsafe for any unexpected cases (should ideally not be triggered)
+      TRUE ~ "Error/Check Data"
+      
+    )
+  ) %>%
+  
+  # Step 3 Convert the new group column to an ordered factor
+  # This helps to plot or model based on these groups, ensuring correct order.
+  mutate(return_group = factor(return_group, levels = c("0-25%", "25-50%", "50-75%", "75-100%",
+                                                        # Including to check if error exists
+                                                        "Error/Check Data")))
+
+# dim(grouped_county)
+# 2,983 rows, 23 columns
+```
+
+```{r, splitting data into exploration and confirmation set}
+# Set a seed for reproducibility
+set.seed(123)
+
+# Determine the number of rows
+n_rows <- nrow(grouped_county)
+
+# Calculate the size of the exploration and confirmation sets (30%/70%)
+exploration_size <- floor(0.3 * n_rows)
+confirmation_size <- n_rows - exploration_size
+
+
+# Randomly sample indices for the exploration set
+exploration_indices <- sample(1:n_rows, size = exploration_size, replace = FALSE)
+
+# Create the exploration and confirmation data frames
+exploration_df <- grouped_county[exploration_indices, ]
+confirmation_df <- grouped_county[-exploration_indices, ]
+```
+
+### 4. Operationalization
+
+To investigate the factors influencing mean charitable contributions per tax return, our methodology involves employing Ordinary Least Squares (OLS) regression on a dataset that has been split into exploration (30%) and confirmation (70%) sets. The model building process will be conducted exclusively on the confirmation data to develop descriptive relationships, while the exploration set will be used for data exploration and transformation decisions. We will construct a sequence of nine regression models, incrementally adding theoretically relevant predictor variables to assess their impact on the outcome variable, `mean_charitable_contributation_per_return`. Given the established literature on charitable giving, this sequential approach allows us to systematically examine the influence of different economic factors on philanthropic behavior per tax return. To address potential issues of heteroskedasticity, robust standard errors will be calculated for the coefficients of all estimated models, providing more reliable statistical inference.
+
+```{}
+```
+
+Our model building process begins by establishing the core relationship between income, as measured by `mean_agi_per_return`, and charitable contributions through three initial specifications. Model 1 examines a simple linear relationship. Model 2 introduces a quadratic term for `mean_agi_per_return` to capture potential non-linear effects, such as diminishing or increasing returns to income in charitable giving. Model 3 explores a similar non-linear relationship using the natural logarithm of `mean_agi_per_return` and its squared term, which can be particularly useful given the often skewed distribution of income. Following this, Model 4 incorporates variables that proxy for wealth and the availability of discretionary funds: `mean_dividend_per_dividend_return`, `mean_capgain_per_capgain_return`, and `mean_rent_royalty_per_rent_royalty_return`, based on the hypothesis that individuals with higher levels of investment income and income from assets have a greater capacity for charitable giving. Model 5 then includes `mean_salary_per_salary_return` to examine the independent effect of stable income sources after controlling for overall income and wealth-related income. Finally, Models 6 and 7 incorporate tax-related variables, `total_net_investment_income_tax_amount` and `mean_tax_payment_per_return`, to reflect the potential influence of tax incentives and the benefit of charitable deductions. Models 8 and 9 revisit the use of log-transformed AGI with a quadratic term, both with and without the full set of control variables, to compare the model fit and significance of predictors under this alternative functional form of income. By examining the changes in model fit and the significance of coefficients across these nine specifications on the training data, and subsequently evaluating their predictive performance on the held-out testing data, we aim to provide a comprehensive analysis of the economic factors influencing mean charitable contributions per tax return.
+
+### 5. Visual Description of the Relationships between Variables
+
+```{r}
+#| fig-cap: We display the distribution of mean AGI (Aggregated Gross Income) per return in panel (A), and the distribution of mean charitable contribution per return in panel (B). We see that both distributions have a long-right tail. Panel (C) illustrates the joint distribution of the two, and we show that across counties in different range of the total return amount have a similar positive relationship between the mean AGI per return and the mean charitable contribution per return. (Note: The y-axis for join distribution is limited for better visibility of distributions.)
+#| fig-height: 2
+#| fig-pos: t
+#| label: fig-dist
+
+agi_dist <- exploration_df %>%
+  ggplot(aes(x = mean_agi_per_return)) +
+  geom_histogram(aes(y = stat(count/sum(count))), fill = "#189AB4") +
+  labs(x = "Mean AGI per Return", y = "Density") +
+  theme(axis.title.x = element_text(size = 9),
+        axis.title.y = element_text(size = 9))
+
+contribution_dist <- exploration_df %>%
+  ggplot(aes(x = mean_charitable_contributation_per_return)) +
+  geom_histogram(aes(y = stat(count/sum(count))), fill = "#05445E") +
+  labs(x = "Mean Charitable Contribution \nper Return", y = "Density") +
+  theme(axis.title.x = element_text(size = 9),
+        axis.title.y = element_text(size = 9))
+
+
+join_dist <- exploration_df %>%
+  ggplot(aes(x = mean_agi_per_return, y = mean_charitable_contributation_per_return, 
+             color = return_group)) +
+  geom_point(alpha = .3) +
+  facet_wrap(~return_group) +
+  theme(legend.position = "none") +
+  labs(x = "Mean AGI per Return", y = "Mean Charitable Contribution per Return",
+       caption = "Note: Grouped by number of returns") +
+  ylim(NA, 6) +
+  theme(axis.title.x = element_text(size = 9),
+        axis.title.y = element_text(size = 9))
+
+
+((agi_dist / contribution_dist) | join_dist) + 
+  plot_annotation(tag_levels = 'A') + 
+  plot_annotation(title = "Distributions of Key Variables") +
+  plot_layout(widths = c(2, 4))
+```
+
+### 6. Model Specification
+
+A report that is scored in the top level will have chosen a set of regression models that strongly support the goal of the study. Variables transformations will be chosen to inform the reader of the shape of the joint distribution, and will be human-understandable. A reason will be provided for the chosen variable transformations. Ordinal variables will not be treated as metric. All model specifications will be displayed in a regression table, using a package like [`stargazer`](https://cran.r-project.org/web/packages/stargazer/vignettes/stargazer.pdf) to format your output. Displayed standard errors will be correctly chosen.
+
+```{r estimate models}
+m1 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return, data = confirmation_df)
+m2 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return + I(mean_agi_per_return^2), data = confirmation_df)
+m4 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return + I(mean_agi_per_return^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return, data = confirmation_df)
+m5 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return + I(mean_agi_per_return^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return + mean_salary_per_salary_return, data = confirmation_df)
+
+
+```
+
+```{r report models}
+#| results: asis
+#| tbl-cap: Summary Table of the Models 
+#| tbl-pos: t
+stargazer(
+  model_one, model_two, model_three, 
+  type = ifelse(knitr::is_latex_output(),"latex", "html"), 
+  covariate.labels = c("Age", "Age2", "Education", "Intercept"), 
+  digits = 2, 
+  omit.stat = c('ser', 'f') 
+)
+```
+
+### 7. Model Assumptions
+
+A report that scores in the top-level has provided an thorough and precise assessment of the assumptions supporting the regression. The list of assumptions is appropriate given the sample size and modeling goals. Each assumption is evaluated fairly, and discussed defensively - without overstating how credible the assumption is or rendering a final up-or-down judgement on the assumption. The report will not miss any important violations of any assumption. Where possible, the report discusses the consequences for the analysis of a violated assumption.
+
+### 8. Model Results and Interpretation
+
+A report that scores in the top level will correctly interpret statistical significance, clearly interpret practical significance, and comment on the broader implications of the results. It may want to include statistical tests besides the standard t-tests for regression coefficients. When discussing practical significance, comment on both the direction and magnitude of your coefficients, placing them in context so the reader can understand if they are important. To help the reader understand your fitted model, you may want to describe hypothetical datapoints (e.g. a hypothetical person with 1 cat is predicted to spend \$2400 on pet care. That rises to \$3200 for a hypothetical person with 2 cats...).
+
+### 9. Overall Effect
+
+A report that scores in the top level will have met expectations for professionalism in data-based writing, reasoning and argument for this point in the course. It can be presented, as is, to another student in the course, and that student could read, interpret and take away the aims, intents, and conclusions of the report.
+
+## References
+
+::: {#refs}
+:::
+
+\newpage
+
+## Appendix
