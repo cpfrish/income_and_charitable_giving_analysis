@@ -11,7 +11,7 @@ skewness(county$total_returns) #12.56
 # --- Define Group Parameters ---
 
 # 1. Define the lower bound threshold of number of returns
-#    Choosing 1000 here as an example
+# Using 1000 as a lower threshold of population
 lower_bound_threshold <- 1000
 
 # 2. Define the quartile breakpoints based on your summary statistics
@@ -57,7 +57,7 @@ county_data_grouped <- county %>%
   ) %>%
   
   # Step 3 Convert the new group column to an ordered factor
-  # This helps to plot or model based on these groups, ensuring correct order.
+  # This helps to plot or model based on these groups
   mutate(return_group = factor(
     return_group,
     levels = c(
