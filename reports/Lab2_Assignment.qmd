@@ -1,6 +1,6 @@
 ---
 title:  "Lab 2: Description Using Models"
-subtitle: "This will be a descriptive subtitle." 
+subtitle: "Are Americans with higher incomes more generous?" 
 date: 04/15/2025
 date-format: long 
 author: 
@@ -36,7 +36,7 @@ execute:
   echo: false 
   warning: false 
   message: false 
-bibliography: lab2_references.bib
+bibliography: lab_2_references.bib
 citeproc: true
 biblio-title: References
 link-citations: true
@@ -55,6 +55,7 @@ library(patchwork)
 library(sandwich) 
 library(stargazer)
 
+library(stats)
 library(lmtest)
 ```
 
@@ -69,32 +70,15 @@ get_robust_se <- function(vcov) {
   }
 ```
 
-## Final Report
-
-Your final report should document your analysis, communicating your findings in a way that is technically precise, clear, and persuasive.
-
-Page limits:
-
--   Main report: 5 pages
--   Appendix: 2 additional pages
-
-You must meet these page limits using standard `pdf_document` output in a `.Rmd` file, or in a `documentclass: scrartcl` in a `.qmd` file. (This assignment prompt has been generated as a `scrartcl`).
-
-The two-page appendix is intended for extra information that will help your instructor assess your model building process. Please include the following elements:
-
-1.  **A Link to your Data Source.** If you used specialized code to access your data, please include that here. Please make sure your instructor has the ability to access the data.
-2.  **A List of Model Specifications you Tried.** We are interested in seeing how you arrived at your final model. In just a sentence, please provide a reason or something that you learned from each specification.
-3.  **A Residuals-vs-Fitted-values Plot.** Please generate this plot for your final model that includes variable transformations. Your instructor will use this plot to assess how well you have captured the shape of the relationship between your X and your Y variable. For example, if there is a clear parabolic pattern in your residuals-vs-fitted plot, that is a signal that you should have included a square term.
-
 ### 1. Introduction
 
-Are Americans with higher incomes more generous than Americans with lower incomes? Giving USA’s Annual Report on Philanthropy for the Year 2023 reported that individual donors gave an estimated \$374.4 billion in charitable contributions, accounting for 67% of a total of \$557.16 billion given \[1\]. With such a significant economic impact, a substantial body of research has sought to understand the intricacies of the relationship between an individual and their propensity to donate. Studies have explored the impact of various socioeconomic factors on charitable giving such as income inequality \[2\], underlying motivations such as altruism, warm glow or social pressure \[3\] and even suggested philanthropy may be having a reverse effect on wealth redistribution \[4\]. As income inequality over the last half-century has risen dramatically across the world, and particularly in the US over the past half century \[5\] a growing body of work has emerged to describe the relationship between income and donations. Despite a unanimous consensus among researchers that the amount donated increases with individuals’ incomes, existing research reveals inconsistent findings on how the proportion of income donated is related to income as highlighted in a recent literature review of 26 studies conducted on this question \[6\]. As Berkeley students, we are motivated by a “commitment to contributing to a better world” \[7\], and by providing our findings to this question we hope to add to an increasingly salient corpus of philanthropic research on income related giving behavior to be used by economists and policy makers seeking to mediate increasing wealth inequality.
+Are Americans with higher incomes more generous than Americans with lower incomes? Giving USA’s Annual Report on Philanthropy for the Year 2023 reported that individual donors gave an estimated \$374.4 billion in charitable contributions, accounting for 67% of a total of \$557.16 billion given [@Meeks2024]. With such a significant economic impact, a substantial body of research has sought to understand the intricacies of the relationship between an individual and their propensity to donate. Studies have explored the impact of various socioeconomic factors on charitable giving such as income inequality [@Dellavigna2012], underlying motivations such as altruism, warm glow or social pressure [@Suss2023] and even suggested philanthropy may be having a reverse effect on wealth redistribution [@Valley2020]. As income inequality over the last half-century has risen dramatically across the world, and particularly in the US over the past half century [@Piketty2014] a growing body of work has emerged to describe the relationship between income and donations. Despite a unanimous consensus among researchers that the amount donated increases with individuals’ incomes, existing research reveals inconsistent findings on how the proportion of income donated is related to income as highlighted in a recent literature review of 26 studies conducted on this question [@Neumayr2021]. As Berkeley students, we are motivated by a “commitment to contributing to a better world” [@UC_B], and by providing our findings to this question we hope to add to an increasingly salient corpus of philanthropic research on income related giving behavior to be used by economists and policy makers seeking to mediate increasing wealth inequality.
 
-Drawing from Neumayr & Pennerstorfer’s findings on the generosity of Americans \[6\], we hypothesize that the relationship between income and proportion of income donated is non-linear. Specifically, we predict a U-shaped relationship where both the lowest and highest income Americans donate a larger proportion of their income than median income Americans. To model this predicted parabolic relationship, we will use an OLS model keeping our parameters linear while applying a logarithmic transformation on income and its quadratic term to model our estimated relationship.
+Drawing from Neumayr & Pennerstorfer’s findings on the generosity of Americans [@Neumayr2021], we hypothesize that the relationship between income and proportion of income donated is non-linear. Specifically, we predict a U-shaped relationship where both the lowest and highest income Americans donate a larger proportion of their income than median income Americans. To model this predicted parabolic relationship, we will use an OLS model keeping our parameters linear while applying a logarithmic transformation on income and its quadratic term to model our estimated relationship.
 
 ### 2. Description of the Data Source
 
-The data source we have chosen to use is the IRS’ Statistics of Income (SOI) program’s ZIP Code data for the tax year 2022. This data set aggregates (at the ZIP code level) individual income tax returns ( with variables assigned to the various items in the 1040 form) filed with the Internal Revenue Service (IRS) during the 12-month period of January 1, 2023 to December 31, 2023. There are 27,690 observations of 165 variables which the IRS samples from the master file system containing the over 200 million tax returns collected each year, compiling statistics based on stratified probability samples of tax or information returns \[8\].
+The data source we have chosen to use is the IRS’ Statistics of Income (SOI) program’s ZIP Code data for the tax year 2022. This data set aggregates (at the ZIP code level) individual income tax returns ( with variables assigned to the various items in the 1040 form) filed with the Internal Revenue Service (IRS) during the 12-month period of January 1, 2023 to December 31, 2023. There are 27,690 observations of 165 variables which the IRS samples from the master file system containing the over 200 million tax returns collected each year, compiling statistics based on stratified probability samples of tax or information returns [@IRS2024].
 
 We recognize the following important limitations of our analysis due to limitations in the underlying data.
 
@@ -105,7 +89,7 @@ We recognize the following important limitations of our analysis due to limitati
 
 ### 3. Data Wrangling
 
-To normalize the data and avoid the common pitfall of using ZIP codes for analysis \[9\] we’ve chosen to merge the ZIP codes with US Census Bureau county geographies using the Housing and Urban Development’s HUD USPS -ZIP Crosswalk file for the 4th quarter of 2022 \[10\]. We've also calculated proportional statistics such as agi per return etc. as a method of standardization, and excluded counties containing less than 1,000 returns to limit potential bias from small population areas. Since we are interested in individuals, and not businesses, we will use the provided residential ratio (from HUD file) to allocate ZIP code level data to residential addresses taking into account both the spatial distribution of population, and the spatial distribution of residences. Although not used in our model, we added groups regarding the number of returns to explore how the relationships between our main variables of interest may differ across these groups. The final data set ready for the analysis contains 2,983 observations with 23 variables, which is further divided into exploration (30%) and confirmation (70%) sets. The model building process will be conducted exclusively on the confirmation data to develop descriptive relationships, while the exploration set will be used for data exploration and transformation decisions.
+To normalize the data and avoid the common pitfall of using ZIP codes for analysis [@Forrest2019] we’ve chosen to merge the ZIP codes with US Census Bureau county geographies using the Housing and Urban Development’s HUD USPS -ZIP Crosswalk file for the 4th quarter of 2022 [@HUD]. We've also calculated proportional statistics such as agi per return etc. as a method of standardization, and excluded counties containing less than 1,000 returns to limit potential bias from small population areas. Since we are interested in individuals, and not businesses, we will use the provided residential ratio (from HUD file) to allocate ZIP code level data to residential addresses taking into account both the spatial distribution of population, and the spatial distribution of residences. Although not used in our model, we added groups regarding the number of returns to explore how the relationships between our main variables of interest may differ across these groups. The final data set ready for the analysis contains 2,983 observations with 23 variables, which is further divided into exploration (30%) and confirmation (70%) sets. The model building process will be conducted exclusively on the confirmation data to develop descriptive relationships, while the exploration set will be used for data exploration and transformation decisions.
 
 ```{r, data wrangling part 1}
 #Load IRS 2022 ZipCode level Statistics of Income data set
@@ -424,10 +408,12 @@ This approach translates the theoretical concepts of income, wealth, and tax eff
 
 ### 5. Visual Description of the Relationships between Variables
 
+The @fig-dist shows the distribution of our main variables of interest, mean AGI per return and mean charitable contribution per return. We see that both distributions have a long-right tail. The joint distribution, grouped by the number of returns shows that the relationship between these variables are approximately similar across all different groups, which led us to look into relationship without dividing our observations into groups.
+
 ```{r}
-#| fig-cap: We display the distribution of mean AGI (Aggregated Gross Income) per return in panel (A), and the distribution of mean charitable contribution per return in panel (B). We see that both distributions have a long-right tail. Panel (C) illustrates the joint distribution of the two, and we show that across counties in different range of the total return amount have a similar positive relationship between the mean AGI per return and the mean charitable contribution per return. (Note: The y-axis for join distribution is limited for better visibility of distributions.)
-#| fig-height: 2
-#| fig-pos: t
+#| fig-cap: In panel (A) we report the distribution of mean AGI and in panel (B) we we report the distribution of mean charitable contribution, where both have a long-right tail. Finally, in panel (C) we present the joint distribution of the two, grouped by number of returns.
+#| fig-height: 3
+#| fig-pos: H
 #| label: fig-dist
 
 agi_dist <- exploration_df %>%
@@ -468,7 +454,7 @@ join_dist <- exploration_df %>%
 
 We constructed a sequence of 4 main regression models, incrementally adding theoretically relevant predictor variables to assess their impact on the outcome variable, mean_charitable_contributation_per_return. This sequential approach allows us to systematically examine the influence of different economic factors on philanthropic behavior per tax return.
 
-Our model building process begins by establishing the core relationship between income, as measured by mean_agi_per_return, and charitable contributions through several specifications. Model 1 examines a simple linear relationship. Model 2 introduces a quadratic term for mean_agi_per_return to capture potential non-linear effects. Model 3 explores a similar non-linear relationship using the natural logarithm of mean_agi_per_return and its squared term. Models 4 and 5 incorporate variables that proxy for wealth and the availability of discretionary funds (mean_dividend_per_dividend_return, mean_capgain_per_capgain_return, and mean_rent_royalty_per_rent_royalty_return), stable income sources (mean_salary_per_salary_return), and tax-related variables (total_net_investment_income_tax_amount and mean_tax_payment_per_return).
+Our model building process begins by establishing the core relationship between income, as measured by mean_agi_per_return, and charitable contributions through several specifications. Model 1 examines a simple linear relationship. Model 2 introduces a quadratic term for mean_agi_per_return to capture potential non-linear effects. Model 3 explores a similar non-linear relationship using the natural logarithm of mean_agi_per_return and its squared term, to address the long-right tail shown from the distribution plots above. Models 4 and 5 incorporate variables that proxy for wealth and the availability of discretionary funds (mean_dividend_per_dividend_return, mean_capgain_per_capgain_return, and mean_rent_royalty_per_rent_royalty_return), stable income sources (mean_salary_per_salary_return), and tax-related variables (total_net_investment_income_tax_amount and mean_tax_payment_per_return).
 
 ```{r estimate models}
 m1 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return, data = confirmation_df)
@@ -533,9 +519,10 @@ show_F_in_two_lines <- function(stargazer) {
 ```{r report models}
 #| results: asis
 #| tbl-cap: Summary Table of the Models 
-#| tbl-pos: t
+#| tbl-pos: H
 stargazer(m1, m2, m3, m4, m5,
   type = ifelse(knitr::is_latex_output(),"latex", "html"),
+  no.space = T,
   # type = "text",
   header = F,
   se = list(se1, se2, se3, se4, se5),
@@ -555,13 +542,13 @@ show_F_in_two_lines()
 
 The first assumption for large-sample models that we use in the report is that the data is IID (Independent and Identically-Distributed). IID requires that each observation is independent from one another and that each comes from the same distribution. The use of IRS Statistics of Income (SOI) data presents some potential challenges to this IID assumption, though our transformation of the data attempts to mitigate these concerns. The raw data is aggregated at the ZIP code level, which inherently introduces a degree of spatial dependence. We address this by allocating the ZIP code level data to individual residential addresses using HUD USPS ZIP Code Crosswalk files and residential ratios, aiming to better reflect the distribution of individuals. While this transformation helps to normalize the data and reduce the impact of ZIP code-level aggregation, it's still plausible that some spatial correlation remains. Specifically, observations within the same county or neighboring areas might exhibit correlation due to shared socioeconomic factors, local policies, or regional economic conditions. This potential spatial autocorrelation could violate the independence assumption. Furthermore, while the IRS sampling process is stratified, the underlying heterogeneity of individual tax returns may still lead to concerns about the 'identically distributed' aspect. For instance, even within a county, the distribution of income and other financial behaviors can vary. Additionally, our attempt to fix the issue with identical distribution by excluding counties with less than 1,000 number of returns may reveal partial picture of the relationship between the variables of our interest.
 
-The second assumption is that a unique BLP should exist, where the explanatory variables must have a finite mean and a finite, non-zero variance, and that there is no perfect colinearity. Our visualizations show that both of our main predictor and outcome variables have a heavy right-tail, indicating a potential non-finite variance. We see that the regression model runs, meaning that there is no perfect colinearity. Although we see a non-infinite variance from our sample for exploration (mean AGI: `{r} round(var_pred, 2)` , mean charitable contribution: `{r} round(var_outc, 2)` ), it should be noted that the underlying distribution may still have non-finite variance, which may violate our assumption for the presence of a unique BLP.
-
 ```{r}
 var_pred <- sqrt(sd(exploration_df$mean_agi_per_return))
 var_outc <- sqrt(sd(exploration_df$mean_charitable_contributation_per_return))
-var_outc
+# var_outc
 ```
+
+The second assumption is that a unique BLP should exist, where the explanatory variables must have a finite mean and a finite, non-zero variance, and that there is no perfect colinearity. Our visualizations show that both of our main predictor and outcome variables have a heavy right-tail, indicating a potential non-finite variance. We see that the regression model runs, meaning that there is no perfect colinearity. Although we see a non-infinite variance from our sample for exploration (mean AGI: `{r} round(var_pred, 2)` , mean charitable contribution: `{r} round(var_outc, 2)` ), it should be noted that the underlying distribution may still have non-finite variance, which may violate our assumption for the presence of a unique BLP.
 
 ### 8. Model Results and Interpretation
 
@@ -574,6 +561,8 @@ A \$1,000 increase in mean salary is predicted to increase charitable contributi
 ### 9. Overall Effect
 
 In a broader sense, these findings indicate that charitable giving is a complex behavior influenced by a combination of factors. Stable income, such as salary, and income from investments, such as dividends and capital gains, both play a role. The non-linear effect of AGI suggests that the propensity to donate changes as income levels vary. This has implications for charitable organizations, which may tailor their fundraising efforts to different income groups and those with different sources of income.
+
+\newpage
 
 ## References
 
@@ -612,10 +601,10 @@ m8 <- lm(mean_charitable_contributation_per_return ~ log(mean_agi_per_return) + 
 
 m9 <- lm(mean_charitable_contributation_per_return ~ log(mean_agi_per_return) + I(log(mean_agi_per_return)^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return + mean_salary_per_salary_return + total_net_investment_income_tax_amount + mean_tax_payment_per_return, data = confirmation_df)
 
-vocv6 <- vcovHC(m6, type = "HC3")
-vocv7 <- vcovHC(m7, type = "HC3")
-vocv8 <- vcovHC(m8, type = "HC3")
-vocv9 <- vcovHC(m9, type = "HC3")
+vcov6 <- vcovHC(m6, type = "HC3")
+vcov7 <- vcovHC(m7, type = "HC3")
+vcov8 <- vcovHC(m8, type = "HC3")
+vcov9 <- vcovHC(m9, type = "HC3")
 
 
 se6 <- get_robust_se(vcov6)
@@ -645,12 +634,71 @@ Model uses log(mean AGI) and its squared term, also suggesting a non-linear rela
 
 Models 6, 7, 8, and 9 show that including wealth/investment, salary, and tax-related variables further improves the model's ability to explain charitable contributions, though some variables like rent royalty and tax payments are not always significant. The adjusted R-squared values for these models are:
 
-Model 6 has an adjusted R-squared of 0.792 (indicating it explains 79.2% of the variance). This shows that by adding more variables, the explanatory power of the model increases compared to the earlier models.
-
-Model 7 has an adjusted R-squared of 0.792 (indicating it also explains 79.2% of the variance). This suggests that Model 7, with its specific set of additional variables, explains a similar amount of variance as Model 6.
-
-Model 8 uses log(mean AGI) and its squared term and has an adjusted R-squared of 0.762 (indicating it explains 76.2% of the variance). This indicates that using the log of AGI in this model results in slightly lower explanatory power than Models 6 and 7.
-
-Model 9 uses log(mean AGI) and its squared term, and also includes mean dividend, mean campgain, mean rent royalty, and mean salary. It has an adjusted R-squared of 0.770 (indicating it explains 77.0% of the variance). This shows that even with the inclusion of several income variables, the model's explanatory power is still slightly lower than Models 6 and 7.
+Model 6 has an adjusted R-squared of 0.792 (indicating it explains 79.2% of the variance). This shows that by adding more variables, the explanatory power of the model increases compared to the earlier models. Model 7 has an adjusted R-squared of 0.792 (indicating it also explains 79.2% of the variance). This suggests that Model 7, with its specific set of additional variables, explains a similar amount of variance as Model 6. Model 8 uses log(mean AGI) and its squared term and has an adjusted R-squared of 0.762 (indicating it explains 76.2% of the variance). This indicates that using the log of AGI in this model results in slightly lower explanatory power than Models 6 and 7. Model 9 uses log(mean AGI) and its squared term, and also includes mean dividend, mean campgain, mean rent royalty, and mean salary. It has an adjusted R-squared of 0.770 (indicating it explains 77.0% of the variance). This shows that even with the inclusion of several income variables, the model's explanatory power is still slightly lower than Models 6 and 7.
 
 ### 3. Residuals - vs - Fitted Values Plots
+
+```{r, fig.height=3}
+# summary(m5)
+confirmation_df <- confirmation_df %>%
+  mutate(model5_predictions = predict(m5),
+         model5_residuals = rstudent(m5))
+
+plot1 <- confirmation_df %>%
+  ggplot(aes(x = mean_agi_per_return, y = model5_residuals)) +
+  geom_point(alpha = .3) + stat_smooth() +
+  labs(x = "Mean AGI \nper Return", y = "Model Residuals") +
+  theme(axis.text.x = element_text(size = 6),
+        axis.text.y = element_text(size = 6),
+        axis.title.x = element_text(size = 7),
+        axis.title.y = element_text(size = 7))
+
+
+plot2 <- confirmation_df %>%
+  ggplot(aes(x = mean_dividend_per_dividend_return, y = model5_residuals)) +
+  geom_point(alpha = .3) + stat_smooth() +
+  labs(x = "Mean Dividend \nper Return", y = "Model Residuals") +
+  theme(axis.text.x = element_text(size = 6),
+        axis.text.y = element_text(size = 6),
+        axis.title.x = element_text(size = 7),
+        axis.title.y = element_text(size = 7))
+
+plot3 <- confirmation_df %>%
+  ggplot(aes(x = mean_capgain_per_capgain_return, y = model5_residuals)) +
+  geom_point(alpha = .3) + stat_smooth() +
+  labs(x = "Mean Capgain \nper Return", y = "Model Residuals") +
+  theme(axis.text.x = element_text(size = 5),
+        axis.text.y = element_text(size = 6),
+        axis.title.x = element_text(size = 6),
+        axis.title.y = element_text(size = 7))
+
+plot4 <- confirmation_df %>%
+  ggplot(aes(x = mean_rent_royalty_per_rent_royalty_return, y = model5_residuals)) +
+  geom_point(alpha = .3) + stat_smooth() +
+  labs(x = "Mean Rent Royalty \nper Return", y = "Model Residuals") +
+  theme(axis.text.x = element_text(size = 5),
+        axis.text.y = element_text(size = 6),
+        axis.title.x = element_text(size = 5),
+        axis.title.y = element_text(size = 7))
+
+
+plot5 <- confirmation_df %>%
+  ggplot(aes(x = mean_salary_per_salary_return, y = model5_residuals)) +
+  geom_point(alpha = .3) + stat_smooth() +
+  labs(x = "Mean Salary \nper Return", y = "Model Residuals") +
+  theme(axis.text.x = element_text(size = 5),
+        axis.text.y = element_text(size = 6),
+        axis.title.x = element_text(size = 6),
+        axis.title.y = element_text(size = 7))
+
+
+plot6 <- confirmation_df %>%
+  ggplot(aes(x = model5_predictions, y = model5_residuals)) +
+  geom_point(alpha = .3) + stat_smooth() +
+  labs(x = "Model Predictions", y = "Model Residuals")
+
+
+((plot1 + plot2) / (plot3 + plot4 + plot5) | plot6) +
+  plot_annotation(title = "Residuals vs Predictors / Fitted Values Plots")
+
+```
