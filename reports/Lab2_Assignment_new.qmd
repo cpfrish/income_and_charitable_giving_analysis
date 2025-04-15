@@ -1,0 +1,700 @@
+---
+title:  "Lab 2: Description Using Models"
+subtitle: "Are Americans with higher incomes more generous?" 
+date: 04/15/2025
+date-format: long 
+author: 
+ - name: Fatema Alsaleh 
+   email: cpfrish@berkeley.edu
+   affiliations: 
+   - name: UC Berkeley, School of Information
+     address: 102 South Hall Drive
+     city: Berkeley, CA 
+     postal-code: 94720
+ - name: Colin Frishberg
+   email: cpfrish@berkeley.edu
+   affiliations: 
+   - name: UC Berkeley, School of Information 
+     address: 102 South Hall Drive
+     city: Berkeley, CA 
+     postal-code: 94720
+ - name: WooJung Kim
+   email: woojung_kim@berkeley.edu
+   affiliations: 
+   - name: UC Berkeley, School of Information
+     address: 102 South Hall Drive
+     city: Berkeley, CA 
+     postal-code: 94720
+format: 
+  html: default
+  pdf: 
+    documentclass: scrartcl
+toc: false 
+colorlinks: true
+cap-locaiton: bottom
+execute: 
+  echo: false 
+  warning: false 
+  message: false 
+abstract: | 
+  This study investigates the relationship between income and charitable giving proportion among US taxpayers, testing the hypothesis of a U-shaped curve where generosity is higher at lower and upper income levels. OLS regression models incorporating linear, quadratic, and logarithmic specifications for Adjusted Gross Income (AGI), alongside controls for wealth and salary, were employed on county-aggregated 2022 IRS Statistics of Income data. Results support the hypothesized non-linear, U-shaped relationship between AGI and giving proportion. The preferred model, including AGI terms, dividend, capital gains, rent/royalty, and salary indicators, explained 79.0% of the variance in charitable contributions per return (Adjusted R² = 0.790). Findings indicate charitable generosity is complex - significantly correlated with AGI in a non-linear pattern, as well as by wealth indicators and stable income sources.
+---
+
+```{r}
+# rm(list = ls())
+```
+
+```{r}
+library(tidyverse)
+library(patchwork)
+
+library(sandwich) 
+library(stargazer)
+
+library(stats)
+library(lmtest)
+```
+
+```{r set plotting theme}
+theme_set(theme_classic())
+```
+
+```{r}
+get_robust_se <- function(vcov) { 
+  se_ <- sqrt(diag(vcov))
+  return(se_)
+  }
+```
+
+#### 1. Introduction
+
+Are Americans with higher incomes more generous than Americans with lower incomes? Giving USA’s Annual Report on Philanthropy for the Year 2023 reported that individual donors gave an estimated \$374.4 billion in charitable contributions, accounting for 67% of a total of \$557.16 billion given \[1\]. With such a significant economic impact, a substantial body of research has sought to understand the intricacies of the relationship between an individual and their propensity to donate. Studies have explored the impact of various socioeconomic factors on charitable giving such as income inequality \[2\], underlying motivations such as altruism, social pressure \[3\] and even suggested philanthropy may be having a reverse effect on wealth redistribution \[4\]. As income inequality has risen dramatically over the past half century \[5\] a growing body of work has emerged to describe relationships pertaining to wealth distribution, such as charitable donations. Despite a unanimous consensus among researchers that the *amount* donated increases with income, research is inconsistent on how the *proportion* of income donated is related to income, as highlighted in a recent literature review of 26 studies conducted on this question \[6\]. As Berkeley students, we are motivated by a “commitment to contributing to a better world” \[7\], and by providing our findings to this question we hope to add to an increasingly salient corpus of philanthropic research on income related giving behavior to be used by economists and policy makers seeking to mediate increasing wealth inequality.
+
+Drawing from Neumayr & Pennerstorfer’s findings on the generosity of Americans \[6\], we hypothesize that the relationship between income and proportion of income donated is non-linear. Specifically, we predict a U-shaped relationship where both the lowest and highest income Americans donate a larger proportion of their income than median income Americans.
+
+#### 2. Description of the Data Source
+
+The data source we have chosen to use is the IRS’ Statistics of Income (SOI) program’s ZIP Code data for the tax year 2022. This data set aggregates (at the ZIP code level) various fields within individual income tax returns filed with the IRS in 2023. There are 27,690 observations of 165 variables which the IRS samples from their master file system containing the over 200 million tax returns collected each year. Statistics are then compiled based on stratified probability samples of tax returns \[8\].
+
+We recognize the following important limitations of our analysis. First, the IRS Data does not represent the full U.S. population given many individuals are not required to file an individual income tax return so we acknowledge that generalization to the U.S. population is not not feasible. Second, due to anonymity measures taken by the IRS, some US zip codes will not be represented in our study so our results equally will not be appropriate for ZIP code generalization. We omit these ZIP codes as part of our analysis which is a reduction of 102 rows. Third, although we take many steps to normalize the data, we do acknowledge that by using aggregated data we do run a risk of ecological fallacy. Finally, poorer households are more likely to take the standard deduction rather than itemize charitable donations \[6\] which means that charitable giving is likely to be under-reported for lower income groups.
+
+#### 3. Data Wrangling
+
+To normalize the data and avoid the common pitfalls of using ZIP codes for analysis \[9\] we’ve chosen to merge the ZIP codes with US Census Bureau county geographies using the Housing and Urban Development’s USPS-ZIP Crosswalk file for the 4th quarter of 2022 \[10\]. We've also calculated proportional statistics (agi per return etc.) as a method of standardization. Since we are interested in individuals, not businesses, we will use the provided residential ratio (from HUD file) to allocate ZIP code level data to residential addresses taking into account both the spatial distribution of population, and the spatial distribution of residences. Although not used in our model, we added groups regarding the number of returns to explore how the relationships between our main variables of interest may differ across these groups. The final data set contains 2,983 observations with 23 variables, which is further divided into exploration (30%) and confirmation (70%) sets.
+
+```{r, data wrangling part 1}
+#Load IRS 2022 ZipCode level Statistics of Income data set
+irs <- read_csv("../data/raw/irs_no_agi_raw.csv")
+#Load HUD Crosswalk file which maps Zips -> Counties including allocation weights
+hud <- readxl::read_xlsx("../data/external/zip_county_122022.xlsx")
+
+
+#filter out US territories from HUD data set
+hud <- hud |>
+  filter(!USPS_ZIP_PREF_STATE %in% c("AS", "GU", "MP", "PR", "VI"))
+
+#rename columns to facilitate join with irs
+hud <- hud |>
+  rename(ZIPCODE = ZIP, county_fips = COUNTY) |>
+  rename_all(tolower) |>
+  mutate(state_fips_hud = substr(county_fips, 1, 2))
+
+#check how many Zips span multiple counties (require allocation after join)
+# hud |>
+#   group_by(zipcode) |>
+#   summarise(county_count = n_distinct(county_fips)) |>
+#   filter(county_count > 1) |>
+#   arrange(desc(county_count))
+
+#looks like 11K one to many zip -> county allocations we need to perform
+
+#clean up irs keeping target variables
+irs <- irs |>
+  mutate(
+    zipcode = ZIPCODE,
+    state_fips_irs = STATEFIPS,
+    total_charitable_contb = A19700,
+    agi = A00100,
+    num_of_returns = N1,
+    net_investment_income_tax = A85300,
+    net_cap_gains_less_loss = A01000,
+    num_returns_net_cap_gains_less_loss = N01000,
+    num_returns_rent_and_royalty = N25870,
+    total_rent_and_royalty = A25870,
+    ord_div_amount = A00600,
+    num_returns_ord_dividens = N00600,
+    state = STATE,
+    total_tax_payments_amount = A10600,
+    salaries_and_wages_amnt = A00200,
+    num_salaries_and_wages = N00200,
+    zip_region = substr(ZIPCODE, 1, 3),
+    .keep = "none"
+  )  |>
+  filter(!zipcode %in% c('00000', '99999')) 
+
+
+
+#join
+county_level_irs_data <- left_join(irs, hud, by = "zipcode")
+
+# check for NAs
+# county_level_irs_data |> filter(is.na(county_fips)) #none that is good
+
+#check allocation targets again, slightly less at 10.6K
+# county_level_irs_data |>
+#   group_by(zipcode) |>
+#   summarise(county_count = n_distinct(county_fips)) |>
+#   filter(county_count > 1) |>
+#   arrange(desc(county_count))
+
+#sense check comparing state_fips between each data source
+
+county_level_irs_data <- county_level_irs_data |>
+  mutate(
+    state_fips_match_strict = case_when(
+      # Both NA -> considered a match here
+      is.na(state_fips_irs) & is.na(state_fips_hud) ~ TRUE,
+      # One NA, one not -> Mismatch
+      is.na(state_fips_irs) | is.na(state_fips_hud) ~ FALSE,
+      # Both have values and are equal -> Match
+      state_fips_irs == state_fips_hud            ~ TRUE,
+      # Both have values and are unequal -> Mismatch
+      TRUE                                        ~ FALSE
+    )
+  )
+
+# Count the explicit matches and mismatches
+# print(county_level_irs_data |> count(state_fips_match_strict))
+
+# Count NAs
+# print(county_level_irs_data |> count(is.na(state_fips_irs), is.na(state_fips_hud)))
+
+# View only the rows definitively flagged as mismatches
+# print(
+#   county_level_irs_data |>
+#     filter(!state_fips_match_strict) |>
+#     select(zipcode, county_fips, state_fips_irs, state_fips_hud)
+# )
+
+#Looks like an error in the HUD crosswalk file where ZIP 20736 is being
+#attributed to Yuma County AZ but should be in MD. The other mismatch is expected
+#based on methodology of HUD Crosswalk 
+
+# filtering out that row before allocation and aggregation
+combined_irs_hud_filtered <- county_level_irs_data |>
+  filter(!(zipcode == "20736" & county_fips == "04025"))
+
+#Select rows we are interested in, and reorganize chr vars to front of DF
+
+combined_irs_hud_filtered <- combined_irs_hud_filtered |>
+  select(!state_fips_match_strict)
+
+combined_irs_hud_filtered <- combined_irs_hud_filtered |>
+  relocate(where(is.character), .before = 1)
+
+
+
+## Step 2: Now we make use of the allocation ratio columns (specifically RES_RATIO)
+
+allocated_data <- combined_irs_hud_filtered |>
+  mutate(# Multiply each IRS variable by the Residential allocation ratio
+    across(
+      c(
+        agi,
+        num_of_returns,
+        total_charitable_contb,
+        net_investment_income_tax,
+        net_cap_gains_less_loss,
+        num_returns_net_cap_gains_less_loss,
+        num_returns_rent_and_royalty,
+        total_rent_and_royalty,
+        ord_div_amount,
+        num_returns_ord_dividens,
+        total_tax_payments_amount,
+        salaries_and_wages_amnt,
+        num_salaries_and_wages
+      ),
+      ~ . * res_ratio,
+      .names = "{.col}_allocated"
+    ))
+
+
+
+#Now we aggregate at county level
+
+
+county_level_irs_data <- allocated_data |>
+  # Group by the unique county identifier
+  group_by(county_fips) |>
+  # Summarise by summing the allocated values for each county
+  summarise(
+    # Count and Main Predictor
+    total_returns = sum(num_of_returns_allocated, na.rm = TRUE),
+    total_agi_amount = sum(agi_allocated, na.rm = TRUE),
+    
+    # Salaries and Wages
+    total_salaries_wages_amount = sum(salaries_and_wages_amnt_allocated, na.rm = TRUE),
+    total_salaries_wages_returns = sum(num_salaries_and_wages_allocated, na.rm = TRUE),
+    
+    # Ordinary Dividends
+    total_ordinary_dividends_amount = sum(ord_div_amount_allocated, na.rm = TRUE),
+    total_ordinary_dividends_returns = sum(num_returns_ord_dividens_allocated, na.rm = TRUE),
+    
+    # Net Capital Gains less Loss
+    total_net_capital_gains_amount = sum(net_cap_gains_less_loss_allocated, na.rm = TRUE),
+    total_net_capital_gains_returns = sum(num_returns_net_cap_gains_less_loss_allocated, na.rm = TRUE),
+    
+    # (Outcome) Charitable Contributions
+    total_charitable_contributions_amount = sum(total_charitable_contb_allocated, na.rm = TRUE),
+    
+    # Net Investment Income Tax
+    total_net_investment_income_tax_amount = sum(net_investment_income_tax_allocated, na.rm = TRUE),
+    
+    # Rent and Royalty Income
+    total_rent_royalty_amount = sum(total_rent_and_royalty_allocated, na.rm = TRUE),
+    total_rent_royalty_returns = sum(num_returns_rent_and_royalty_allocated, na.rm = TRUE),
+    
+    # Total Tax Payments
+    total_tax_payments_amount = sum(total_tax_payments_amount_allocated, na.rm = TRUE),
+    
+    # Keep the state FIPS (should be unique per county_fips)
+    state_fips = first(state_fips_hud),
+    # Use the state FIPS from the HUD data context
+    
+    .groups = 'drop' # Ungroup after summarising
+  ) 
+
+
+
+#Proportion Normalization
+county <- county_level_irs_data |>
+  mutate(
+    #Total return normalizations
+    mean_agi_per_return = ifelse(total_returns > 0, total_agi_amount / total_returns, 0),
+    mean_charitable_contributation_per_return = ifelse(
+      total_returns > 0,
+      total_charitable_contributions_amount / total_returns,
+      0
+    ),
+    mean_tax_payment_per_return = ifelse(total_returns > 0, total_tax_payments_amount / total_returns, 0),
+    
+    #Specific return normalizations
+    mean_salary_per_salary_return = ifelse(
+      total_salaries_wages_returns > 0,
+      total_salaries_wages_amount / total_salaries_wages_returns,
+      0
+    ),
+    
+    
+    mean_dividend_per_dividend_return = ifelse(
+      total_ordinary_dividends_returns > 0,
+      total_ordinary_dividends_amount / total_ordinary_dividends_returns,
+      0
+    ),
+    
+    
+    mean_capgain_per_capgain_return = ifelse(
+      total_net_capital_gains_returns > 0,
+      total_net_capital_gains_amount / total_net_capital_gains_returns,
+      0
+    ),
+    
+    
+    mean_rent_royalty_per_rent_royalty_return = ifelse(
+      total_rent_royalty_returns > 0,
+      total_rent_royalty_amount / total_rent_royalty_returns,
+      0
+    )
+  )
+```
+
+```{r, data wrangling part 2}
+
+# summary(county$total_returns)
+# skewness(county$total_returns) #12.56
+#Data is significantly right skewed
+
+# Grouping
+
+# 1. Define the lower bound threshold of number of returns
+#    Choosing 1000 here as an example
+lower_bound_threshold <- 1000
+
+# 2. Define the quartile breakpoints based on your summary statistics
+#    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.
+#      2    4534   11339   49301   30542 4566771
+q1_breakpoint <- 4534
+median_breakpoint <- 11339
+q3_breakpoint <- 30542
+
+# for later plotting note
+group_note <- paste0("Note: Breakpoints are inclusive-exclusive: \n1,000 (0%), ", q1_breakpoint, " (25%), ", median_breakpoint, " (50%), and ", q3_breakpoint, " (75%).")
+# Cleaning
+
+# Create a new data frame with the filter and the new group column
+grouped_county <- county %>%
+  
+  # Step 1: Apply the lower bound filter first: counties with less than 1,000 returns are filtered out
+  filter(total_returns >= lower_bound_threshold) %>%
+  
+  # Step 2: Create new grouping column
+  mutate(
+    return_group = case_when(
+      # Group 1: Smallest group (between lower bound and Q1)
+      total_returns >= lower_bound_threshold &
+        total_returns < q1_breakpoint ~ "0-25%",
+      
+      # Group 2: Between Q1 and Median
+      total_returns >= q1_breakpoint &
+        total_returns < median_breakpoint ~ "25-50%",
+      
+      # Group 3: Between Median and Q3
+      total_returns >= median_breakpoint &
+        total_returns < q3_breakpoint ~ "50-75%",
+      
+      # Group 4: Largest group (Q3 and above)
+      total_returns >= q3_breakpoint ~ "75-100%",
+      
+      # Group X: failsafe for any unexpected cases (should ideally not be triggered)
+      TRUE ~ "Error/Check Data"
+      
+    )
+  ) %>%
+  
+  # Step 3 Convert the new group column to an ordered factor
+  # This helps to plot or model based on these groups, ensuring correct order.
+  mutate(return_group = factor(return_group, levels = c("0-25%", "25-50%", "50-75%", "75-100%",
+                                                        # Including to check if error exists
+                                                        "Error/Check Data")))
+
+# dim(grouped_county)
+# 2,983 rows, 23 columns
+```
+
+```{r, splitting data into exploration and confirmation set}
+# Set a seed for reproducibility
+set.seed(123)
+
+# Determine the number of rows
+n_rows <- nrow(grouped_county)
+
+# Calculate the size of the exploration and confirmation sets (30%/70%)
+exploration_size <- floor(0.3 * n_rows)
+confirmation_size <- n_rows - exploration_size
+
+
+# Randomly sample indices for the exploration set
+exploration_indices <- sample(1:n_rows, size = exploration_size, replace = FALSE)
+
+# Create the exploration and confirmation data frames
+exploration_df <- grouped_county[exploration_indices, ]
+confirmation_df <- grouped_county[-exploration_indices, ]
+```
+
+#### 4. Operationalization
+
+To build a robust and interpretable model, we translate theoretical concepts of income, wealth, and tax effects into measurable income based on literature related to charitable giving. Income is represented by mean_agi_per_return, capturing the average adjusted gross income per tax return. To account for potential non-linear effects of income, we include both a quadratic term (mean_agi_per_return squared) and logarithmic transformations. For instance, the quadratic term allows us to model a potential U-shaped or inverted U-shaped relationship, while the logarithmic transformation can help normalize the data and allows us to interpret the coefficient on income as an elasticity.
+
+Wealth and the availability of discretionary funds are operationalized using mean_dividend_per-dividend_return, mean_capgain_per_capgain_return, and mean_rent_royalty_per_rent_royalty_return, representing average income from dividends, capital gains, and rent/royalties, respectively. Stable income sources are captured by mean_salary_per_salary_return, the average salary per tax return. Finally, to operationalize the influence of tax incentives, we include total_net_investment_income_tax_amount and mean_tax_payment_per_return.
+
+#### 5. Visual Description of the Relationships between Variables
+
+The @fig-dist shows the distribution of our main variables of interest, mean AGI per return and mean charitable contribution per return. We see that both distributions have a long-right tail. The joint distribution, grouped by the number of returns shows that the relationship between these variables are approximately similar across all different groups.
+
+```{r}
+#| fig-cap: Panel (A) and (B) show the distribution of mean AGI and mean charitable contribution respectively.In panel (C) we present the joint distribution of the two, grouped by number of returns.
+#| fig-height: 2.8
+#| fig-pos: H
+#| label: fig-dist
+
+agi_dist <- exploration_df %>%
+  ggplot(aes(x = mean_agi_per_return)) +
+  geom_histogram(aes(y = stat(count/sum(count))), fill = "#189AB4") +
+  labs(x = "Mean AGI per Return", y = "Density") +
+  theme(axis.title.x = element_text(size = 9),
+        axis.title.y = element_text(size = 9))
+
+contribution_dist <- exploration_df %>%
+  ggplot(aes(x = mean_charitable_contributation_per_return)) +
+  geom_histogram(aes(y = stat(count/sum(count))), fill = "#05445E") +
+  labs(x = "Mean Charitable Contribution \nper Return", y = "Density") +
+  theme(axis.title.x = element_text(size = 7),
+        axis.title.y = element_text(size = 9)) +
+  scale_y_continuous(breaks = seq(0, .4, by = .2))
+
+join_dist <- exploration_df %>%
+  ggplot(aes(x = mean_agi_per_return, y = mean_charitable_contributation_per_return, 
+             color = return_group)) +
+  geom_point(alpha = .3) +
+  facet_wrap(~return_group) +
+  theme(legend.position = "none") +
+  labs(x = "Mean AGI per Return", y = "Mean Charitable Contribution per Return",
+       caption = "Note: Grouped by number of returns") +
+  ylim(NA, 6) +
+  theme(axis.title.x = element_text(size = 9),
+        axis.title.y = element_text(size = 9))
+
+
+((agi_dist / contribution_dist) | join_dist) +
+  plot_annotation(tag_levels = 'A') + 
+  plot_annotation(title = "Distributions of Key Variables",
+                  theme = theme(plot.title = element_text(size = 10))) +
+  plot_layout(widths = c(2, 4))
+```
+
+#### 6. Model Specification
+
+We constructed a sequence of 4 main regression models, incrementally adding theoretically relevant predictor variables to assess their impact on the outcome variable, mean_charitable_contributation_per_return. This sequential approach allows us to systematically examine the influence of different economic factors on philanthropic behavior per tax return. Our base model (Model 1) is a relationship between income, as measured by mean AGI, and charitable contributions. Model 2 introduces quadratic term to capture non-linear relationship. Models 4 and 5 incorporate variables that proxy for wealth and the availability of discretionary funds, stable income sources, and tax-related variables. (Model 3 with natural log is specified in Appendix.)
+
+```{r estimate models}
+m1 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return, data = confirmation_df)
+m2 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return + I(mean_agi_per_return^2), data = confirmation_df)
+m4 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return + I(mean_agi_per_return^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return, data = confirmation_df)
+m5 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return + I(mean_agi_per_return^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return + mean_salary_per_salary_return, data = confirmation_df)
+
+vcov1 <- vcovHC(m1, type = "HC3")
+vcov2 <- vcovHC(m2, type = "HC3")
+vcov4 <- vcovHC(m4, type = "HC3")
+vcov5 <- vcovHC(m5, type = "HC3")
+
+se1 <- get_robust_se(vcov1)
+se2 <- get_robust_se(vcov2)
+se4 <- get_robust_se(vcov4)
+se5 <- get_robust_se(vcov5)
+
+# reporting df under F-statistics
+show_F_in_two_lines <- function(stargazer) {
+  # `Stringr` works better than base's regex 
+  require(stringr)
+
+  # If you remove `capture.output()`, not only the modified LaTeX code 
+  # but also the original code would show up
+  stargazer <- stargazer |>
+    capture.output()
+
+  # Reuse the index in which F-statistics are displayed
+  position_F <- str_which(stargazer, "F Statistic")
+
+  # Extract only F-statistics
+  Fs <- stargazer[position_F] |>
+    str_replace_all("\\(.*?\\)", "")
+
+  # Extract only df values and make a new line for them
+  dfs <- stargazer[position_F] |>
+    str_extract_all("\\(.*?\\)") |>
+    unlist() |>
+    (
+      \(dfs)
+      paste0(" & ", dfs, collapse = "")
+    )() |>
+    paste0(" \\\\")
+
+  # Reuse table elements that are specified
+  # after the index of F-statistics
+  after_Fs <- stargazer[-seq_len(position_F)]
+
+  c(
+    stargazer[seq_len(position_F - 1)],
+    Fs,
+    dfs,
+    after_Fs
+  ) |>
+    cat(sep = "\n")
+}
+```
+
+```{r report models}
+#| results: asis
+#| tbl-cap: Summary Table of the Models 
+#| tbl-pos: H
+stargazer(m1, m2, m4, m5,
+  type = ifelse(knitr::is_latex_output(),"latex", "html"),
+  no.space = T,
+  # type = "text",
+  header = F,
+  se = list(se1, se2, se4, se5),
+  column.sep.width = ".001pt",
+  covariate.labels = c("Mean AGI", "Mean AGI**2", "Mean Dividend", "Mean Capgain",
+                       "Mean Rent Royalty", "Mean Salary", "Intercept"),
+  column.labels = c("(1)", "(2)", "(4)", "(5)"),
+  model.numbers = F,
+  digits = 3, 
+  font.size = "tiny",
+  omit.stat = c('ser', 'rsq'),
+  dep.var.caption = "Dependent Variable: mean charitable contribution",
+  dep.var.labels.include = F,
+  notes = c("Robust standard errors are displayed.", "The covariate names omit per unit (e.g., per return) due to space limit.")) %>%
+show_F_in_two_lines()
+```
+
+#### 7. Model Assumptions
+
+The first assumption for large-sample models that is that the data is IID (Independent and Identically-Distributed). The use of IRS Statistics of Income (SOI) data presents some potential challenges to this assumption, though our transformation of the data attempts to mitigate these concerns. The raw data is aggregated at the ZIP code level, which inherently introduces a degree of spatial dependence. We address this by allocating the ZIP code level data to individual residential addresses using HUD USPS ZIP Code Crosswalk files and residential ratios, aiming to better reflect the distribution of individuals. While this transformation helps to normalize the data and reduce the impact of ZIP code-level aggregation, it's still plausible that some spatial correlation remains. Specifically, observations within the same county or neighboring areas might exhibit correlation due to shared socioeconomic factors, local policies, or regional economic conditions. This potential spatial autocorrelation could violate the independence assumption. Furthermore, while the IRS sampling process is stratified, the underlying heterogeneity of individual tax returns may still lead to concerns about the 'identically distributed' aspect. For instance, county level data may not be a reflection of individual level data (Ecological Fallacy). 
+
+```{r}
+var_pred <- sqrt(sd(exploration_df$mean_agi_per_return))
+var_outc <- sqrt(sd(exploration_df$mean_charitable_contributation_per_return))
+# var_outc
+```
+
+The second assumption is that a unique BLP should exist. Our visualizations show that both of our main predictor and outcome variables have a heavy right-tail, indicating a potential non-finite variance. We see that the regression model runs, meaning that there is no perfect colinearity. Although we see a non-infinite variance from our sample for exploration (mean AGI: `{r} round(var_pred, 2)` , mean charitable contribution: `{r} round(var_outc, 2)`), it should be noted that the underlying distribution may still have non-finite variance, which may violate our assumption for the presence of a unique BLP.
+
+#### 8. Model Results and Interpretation
+
+The models significantly predict mean charitable contributions (p \< .001), with adjusted R-squared values indicating varying explanatory power. Models 4 and 5, including wealth/investment income and salary, show higher explanatory power than Models 1 and 2 (which only include AGI and AGI squared). Specifically, Model 1 (mean AGI) explains 60.2%, while Model 2 (with AGI squared) increases this to 70.6%. Adding wealth/investment income (Model 4) further increases it to 78.5%, and including salary (Model 5) reaches 79.0%. This suggests income, wealth/investment, and salary significantly influence charitable giving.
+
+A \$1,000 increase in mean salary is predicted to increase charitable contributions by \$12, holding other variables constant. A \$10,000 increase in salary is positively associated with an \$120 in predicted charitable giving. On average, individuals with higher dividend earnings are expected to donate more, with every \$1,000 increase in mean dividend income associated with additional \$54 in charitable contributions. The model captures a U-shaped relationship between mean AGI and mean charitable donations. For instance, at very low AGI levels of \$15,000, individuals may have significant financial constraints. As their income slightly rises to \$25,000, they might still be focused on meeting basic needs, and charitable giving might remain relatively low or even decrease as they have less disposable income after taking on new expenses. As income continues to increase to \$50,000 or \$75,000, individuals might have more discretionary income, and their charitable giving could increase at an increasing rate. This is because the initial negative effect of AGI on giving is eventually overcome by the positive effect of the squared AGI term as income grows.
+
+In a broader sense, these findings indicate that charitable giving is a complex behavior influenced by a combination of factors. Stable income, such as salary, and income from investments, such as dividends and capital gains, both play a role. The results corroborate our initial hypothesis of non-linear, U-shaped relationship between AGI and charitable contributions. These results may be useful for charitable organizations and researchers exploring complex dynamics associated with charitable behaviors.
+
+\newpage
+
+#### References
+
+1.  Meeks, M. (2024, June 25). Giving USA: U.S. charitable giving totaled \$557.16 billion in 2023 \| Giving USA. Https://Givingusa.Org/Giving-Usa-u-s-Charitable-Giving-Totaled-557-16-Billion-in-2023/.
+2.  Dellavigna, S., List, J. A., & Malmendier, U. (2012). Testing for altruism and social pressure in charitable giving. Quarterly Journal of Economics, 127(1), 1–56. <https://doi.org/10.1093/qje/qjr050>
+3.  Suss, J. H. (2023). Higher income individuals are more generous when local economic inequality is high. PLoS ONE, 18(6 June). <https://doi.org/10.1371/journal.pone.0286273>
+4.  Valley, P. (2020, September 8). How philanthropy benefits the super-rich. Https://Www.Theguardian.Com/Society/2020/Sep/08/How-Philanthropy-Benefits-the-Super-Rich. <https://www.theguardian.com/society/2020/sep/08/how-philanthropy-benefits-the-super-rich>
+5.  Piketty, T., & Saez, E. (2014). Inequality in the long run. Science, 344(6186), 838–843. <https://doi.org/10.1126/science.1251936>
+6.  Neumayr, M., & Pennerstorfer, A. (2021). The Relation Between Income and Donations as a Proportion of Income Revisited: Literature Review and Empirical Application. Nonprofit and Voluntary Sector Quarterly, 50(3), 551–577. <https://doi.org/10.1177/0899764020977667>
+7.  UC Berkeley. (n.d.). Principles of Community. Https://Chancellor.Berkeley.Edu/about/Principles-Community.
+8.  IRS. (2024, August 29). SOI Tax Stats - The work SOI does \| Internal Revenue Service. Https://Www.Irs.Gov/Statistics/Soi-Tax-Stats-the-Work-Soi-Does. <https://www.irs.gov/statistics/soi-tax-stats-the-work-soi-does>
+9.  Forrest, M. (2019, August 8). Stop Using Zip Codes for Geospatial Analysis. Https://Carto.Com/Blog/Zip-Codes-Spatial-Analysis. <https://carto.com/blog/zip-codes-spatial-analysis>
+10. HUD - PD&R. (n.d.). HUD USPS ZIP Code Crosswalk Files. https://www.Huduser.Gov/Portal/Datasets/Usps_crosswalk.html
+
+\newpage
+
+## Appendix
+
+### 1. Link to the Data Source
+
+-   <https://www.irs.gov/statistics/soi-tax-stats-individual-income-tax-statistics-zip-code-data-soi>
+
+-   <https://www.huduser.gov/apps/public/uspscrosswalk/login?previous=https://www.huduser.gov/apps/public/uspscrosswalk/home>
+
+-   Link to the Google drive with the data sets downloaded from the sites above: <https://drive.google.com/drive/folders/12la_DQTyAJiNlq99ZdSQrpvSMdEPky5e?usp=sharing>
+
+### 2. List of the model specifications
+
+```{r, models 1 & 6-9}
+#| results: asis
+#| tbl-cap: Summary Table of the Models Tried
+#| tbl-pos: H
+var_labels <- c("Mean AGI", "Mean AGI**2", "Log(Mean AGI)", "Log(Mean AGI**2)", "Mean Dividend", "Mean Capgain",
+                "Mean Rent Royalty", "Mean Salary", "Total Net Investment", "Mean Tax Payment", "Intercept")
+
+
+
+m3 <- lm(mean_charitable_contributation_per_return ~ log(mean_agi_per_return) + I(log(mean_agi_per_return)^2), data = confirmation_df)
+
+m6 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return + I(mean_agi_per_return^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return + mean_salary_per_salary_return + total_net_investment_income_tax_amount, data = confirmation_df)
+
+m7 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return + I(mean_agi_per_return^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return + mean_salary_per_salary_return + total_net_investment_income_tax_amount + mean_tax_payment_per_return, data = confirmation_df)
+
+m8 <- lm(mean_charitable_contributation_per_return ~ log(mean_agi_per_return) + I(log(mean_agi_per_return)^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return, data = confirmation_df)
+
+m9 <- lm(mean_charitable_contributation_per_return ~ log(mean_agi_per_return) + I(log(mean_agi_per_return)^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return + mean_salary_per_salary_return + total_net_investment_income_tax_amount + mean_tax_payment_per_return, data = confirmation_df)
+
+vcov3 <- vcovHC(m3, type = "HC3")
+vcov6 <- vcovHC(m6, type = "HC3")
+vcov7 <- vcovHC(m7, type = "HC3")
+vcov8 <- vcovHC(m8, type = "HC3")
+vcov9 <- vcovHC(m9, type = "HC3")
+
+se3 <- get_robust_se(vcov3)
+se6 <- get_robust_se(vcov6)
+se7 <- get_robust_se(vcov7)
+se8 <- get_robust_se(vcov8)
+se9 <- get_robust_se(vcov9)
+
+
+
+stargazer(m1, m3, m6, m7, m8, m9,
+  type = ifelse(knitr::is_latex_output(),"latex", "html"),
+  # type = "text",
+  header = F,
+  se = list(se1, se3, se6, se7, se8, se9),
+  column.sep.width = ".001pt",
+  column.labels = c("(1)", "(3)", "(6)", "(7)", "(8)", "(9)"),
+  model.numbers = F,
+  font.size = "tiny",
+  covariate.labels = var_labels,
+  digits = 3, 
+  omit.stat = c('ser', 'rsq'),
+  dep.var.caption = "Dependent Variable: mean charitable contribution",
+  dep.var.labels.include = F,
+  notes = c("Robust standard errors are displayed.", "The covariate names omit per unit (e.g., per return) due to space limit.")) %>%
+show_F_in_two_lines()
+```
+
+Model uses log(mean AGI) and its squared term, also suggesting a non-linear relationship between income and charitable giving, similar to the findings in the main models. Both coefficients are statistically significant. Because of the log transformation, the coefficients are interpreted as elasticities. The adjusted R-squared of 0.644 indicates that Model 3 explains 64.4% of the variance in charitable giving, showing that even when AGI is log-transformed, it remains a significant predictor of donations. Models 6, 7, 8, and 9 show that including wealth/investment, salary, and tax-related variables further improves the model's ability to explain charitable contributions, though some variables like rent royalty and tax payments are not always significant. The adjusted R-squared values for these models are:
+
+Model 6 has an adjusted R-squared of 0.792 (indicating it explains 79.2% of the variance). This shows that by adding more variables, the explanatory power of the model increases compared to the earlier models. Model 7 has an adjusted R-squared of 0.792 (indicating it also explains 79.2% of the variance). This suggests that Model 7, with its specific set of additional variables, explains a similar amount of variance as Model 6. Model 8 uses log(mean AGI) and its squared term and has an adjusted R-squared of 0.762 (indicating it explains 76.2% of the variance). This indicates that using the log of AGI in this model results in slightly lower explanatory power than Models 6 and 7. Model 9 uses log(mean AGI) and its squared term, and also includes mean dividend, mean campgain, mean rent royalty, and mean salary. It has an adjusted R-squared of 0.770 (indicating it explains 77.0% of the variance). This shows that even with the inclusion of several income variables, the model's explanatory power is still slightly lower than Models 6 and 7. While Models 6 and 7 exhibit slightly higher R-squared values shown in the appendix, we found Model 5 as a more suitable choice due to its balance of strong explanatory power and greater parsimony.
+
+### 3. Residuals - vs - Fitted Values Plots
+
+```{r, fig.height=2.7}
+# summary(m5)
+confirmation_df <- confirmation_df %>%
+  mutate(model5_predictions = predict(m5),
+         model5_residuals = rstudent(m5))
+
+plot1 <- confirmation_df %>%
+  ggplot(aes(x = mean_agi_per_return, y = model5_residuals)) +
+  geom_point(alpha = .3) + stat_smooth() +
+  labs(x = "Mean AGI \nper Return", y = "Model Residuals") +
+  theme(axis.text.x = element_text(size = 6),
+        axis.text.y = element_text(size = 6),
+        axis.title.x = element_text(size = 7),
+        axis.title.y = element_text(size = 7))
+
+
+plot2 <- confirmation_df %>%
+  ggplot(aes(x = mean_dividend_per_dividend_return, y = model5_residuals)) +
+  geom_point(alpha = .3) + stat_smooth() +
+  labs(x = "Mean Dividend \nper Return", y = "Model Residuals") +
+  theme(axis.text.x = element_text(size = 6),
+        axis.text.y = element_text(size = 6),
+        axis.title.x = element_text(size = 7),
+        axis.title.y = element_text(size = 7))
+
+plot3 <- confirmation_df %>%
+  ggplot(aes(x = mean_capgain_per_capgain_return, y = model5_residuals)) +
+  geom_point(alpha = .3) + stat_smooth() +
+  labs(x = "Mean Capgain \nper Return", y = "Model Residuals") +
+  theme(axis.text.x = element_text(size = 5),
+        axis.text.y = element_text(size = 6),
+        axis.title.x = element_text(size = 6),
+        axis.title.y = element_text(size = 7))
+
+plot4 <- confirmation_df %>%
+  ggplot(aes(x = mean_rent_royalty_per_rent_royalty_return, y = model5_residuals)) +
+  geom_point(alpha = .3) + stat_smooth() +
+  labs(x = "Mean Rent Royalty \nper Return", y = "Model Residuals") +
+  theme(axis.text.x = element_text(size = 5),
+        axis.text.y = element_text(size = 6),
+        axis.title.x = element_text(size = 5),
+        axis.title.y = element_text(size = 7))
+
+
+plot5 <- confirmation_df %>%
+  ggplot(aes(x = mean_salary_per_salary_return, y = model5_residuals)) +
+  geom_point(alpha = .3) + stat_smooth() +
+  labs(x = "Mean Salary \nper Return", y = "Model Residuals") +
+  theme(axis.text.x = element_text(size = 5),
+        axis.text.y = element_text(size = 6),
+        axis.title.x = element_text(size = 6),
+        axis.title.y = element_text(size = 7))
+
+
+plot6 <- confirmation_df %>%
+  ggplot(aes(x = model5_predictions, y = model5_residuals)) +
+  geom_point(alpha = .3) + stat_smooth() +
+  labs(x = "Model Predictions", y = "Model Residuals")
+
+
+((plot1 + plot2) / (plot3 + plot4 + plot5) | plot6) +
+  plot_annotation(title = "Residuals vs Predictors / Fitted Values Plots",
+                  theme = theme(plot.title = element_text(size = 10)))
+
+```
