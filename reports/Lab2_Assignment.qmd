@@ -41,7 +41,7 @@ citeproc: true
 biblio-title: References
 link-citations: true
 abstract: | 
-  In this position, you can include the short abstract of your report.
+  This study investigates the relationship between income and charitable giving proportion among US taxpayers, testing the hypothesis of a U-shaped curve where generosity is higher at lower and upper income levels. OLS regression models incorporating linear, quadratic, and logarithmic specifications for Adjusted Gross Income (AGI), alongside controls for wealth and salary, were employed on county-aggregated 2022 IRS Statistics of Income data. Results support the hypothesized non-linear, U-shaped relationship between AGI and giving proportion. The preferred model, including AGI terms, dividend, capital gains, rent/royalty, and salary indicators, explained 79.0% of the variance in charitable contributions per return (Adjusted R² = 0.790). Findings indicate charitable generosity is complex - significantly influenced by AGI in a non-linear pattern, as well as by wealth indicators and stable income sources.
 ---
 
 ```{r}
@@ -70,26 +70,21 @@ get_robust_se <- function(vcov) {
   }
 ```
 
-### Abstract
-
-This study investigates the relationship between income and charitable giving proportion among US taxpayers, testing the hypothesis of a U-shaped curve where generosity is higher at lower and upper income levels. OLS regression models incorporating linear, quadratic, and logarithmic specifications for Adjusted Gross Income (AGI), alongside controls for wealth and salary, were employed on county-aggregated  2022 IRS Statistics of Income data. Results support the hypothesized non-linear, U-shaped relationship between AGI and giving proportion. The preferred model, including AGI terms, dividend, capital gains, rent/royalty, and salary indicators, explained 79.0% of the variance in charitable contributions per return (Adjusted R² = 0.790). Findings indicate charitable generosity is complex - significantly influenced by AGI in a non-linear pattern, as well as by wealth indicators and stable income sources. 
-
-
 #### 1. Introduction
 
-Are Americans with higher incomes more generous than Americans with lower incomes? Giving USA’s Annual Report on Philanthropy for the Year 2023 reported that individual donors gave an estimated \$374.4 billion in charitable contributions, accounting for 67% of a total of \$557.16 billion given [@Meeks2024]. With such a significant economic impact, a substantial body of research has sought to understand the intricacies of the relationship between an individual and their propensity to donate. Studies have explored the impact of various socioeconomic factors on charitable giving such as income inequality [@Dellavigna2012], underlying motivations such as altruism, warm glow or social pressure [@Suss2023] and even suggested philanthropy may be having a reverse effect on wealth redistribution [@Valley2020]. As income inequality over the last half-century has risen dramatically across the world, and particularly in the US over the past half century [@Piketty2014] a growing body of work has emerged to describe the relationship between income and donations. Despite a unanimous consensus among researchers that the amount donated increases with individuals’ incomes, existing research reveals inconsistent findings on how the proportion of income donated is related to income as highlighted in a recent literature review of 26 studies conducted on this question [@Neumayr2021]. As Berkeley students, we are motivated by a “commitment to contributing to a better world” [@UC_B], and by providing our findings to this question we hope to add to an increasingly salient corpus of philanthropic research on income related giving behavior to be used by economists and policy makers seeking to mediate increasing wealth inequality.
+Are Americans with higher incomes more generous than Americans with lower incomes? Giving USA’s Annual Report on Philanthropy for the Year 2023 reported that individual donors gave an estimated \$374.4 billion in charitable contributions, accounting for 67% of a total of \$557.16 billion given (1). Studies have explored the impact of various socioeconomic factors on charitable giving such as income inequality (2), underlying motivations such as altruism, social pressure (3) and even suggested philanthropy may be having a reverse effect on wealth redistribution (4). As income inequality has risen dramatically over the past half century (5) a growing body of work has emerged to describe relationships pertaining to wealth distribution, such as charitable donations. Despite a unanimous consensus among researchers that the *amount* donated increases with income, reseach is inconsistent on how the *proportion* of income donated is related to income, as highlighted in a recent literature review of 26 studies conducted on this question (6). As Berkeley students, we are motivated by a “commitment to contributing to a better world” (7), and by providing our findings to this question we hope to add to an increasingly salient corpus of philanthropic research on income related giving behavior to be used by economists and policy makers seeking to mediate increasing wealth inequality.
 
-Drawing from Neumayr & Pennerstorfer’s findings on the generosity of Americans [@Neumayr2021], we hypothesize that the relationship between income and proportion of income donated is non-linear. Specifically, we predict a U-shaped relationship where both the lowest and highest income Americans donate a larger proportion of their income than median income Americans. To model this predicted parabolic relationship, we will use an OLS model keeping our parameters linear while applying a logarithmic transformation on income and its quadratic term to model our estimated relationship.
+Drawing from Neumayr & Pennerstorfer’s findings on the generosity of Americans (6), we hypothesize that the relationship between income and proportion of income donated is non-linear. Specifically, we predict a U-shaped relationship where both the lowest and highest income Americans donate a larger proportion of their income than median income Americans.
 
 #### 2. Description of the Data Source
 
-The data source we have chosen to use is the IRS’ Statistics of Income (SOI) program’s ZIP Code data for the tax year 2022. This data set aggregates (at the ZIP code level) individual income tax returns ( with variables assigned to the various items in the 1040 form) filed with the Internal Revenue Service (IRS) during the 12-month period of January 1, 2023 to December 31, 2023. There are 27,690 observations of 165 variables which the IRS samples from the master file system containing the over 200 million tax returns collected each year, compiling statistics based on stratified probability samples of tax or information returns [@IRS2024].
+The data source we have chosen to use is the IRS’ Statistics of Income (SOI) program’s ZIP Code data for the tax year 2022. This data set aggregates (at the ZIP code level) various fields within individual income tax returns filed with the IRS in 2023. There are 27,690 observations of 165 variables which the IRS samples from their master file system containing the over 200 million tax returns collected each year. Statistics are then compiled based on stratified probability samples of tax returns (8).
 
-We recognize some limitations of our analysis due to limitations in the underlying data. First, the IRS Data does not represent the full U.S. population because many individuals are not required to file an individual income tax return. Our results may be appropriate for generalizations of the US population and we may be excluding a significant number of very low income individuals who donate to charity. Second, due to anonymity measures taken by the IRS, some US zip codes will not be represented in our study so our results equally will not be appropriate for ZIP code generalization. We omit these ZIP codes as part of our analysis which is a reduction of 102 rows. Third, although we take many steps to normalize the data, using aggregated data may involve a risk of ecological fallacy. Finally, poorer households are more likely to take the standard deduction rather than itemize charitable donations [@Neumayr2021], where charitable giving is likely to be under-reported for lower income groups.
+We recognize the following important limitations of our analysis. First, the IRS Data does not represent the full U.S. population given many individuals are not required to file an individual income tax return so we acknowledge that generalization to the U.S. population is not not feasible. Second, due to anonymity measures taken by the IRS, some US zip codes will not be represented in our study so our results equally will not be appropriate for ZIP code generalization. We omit these ZIP codes as part of our analysis which is a reduction of 102 rows. Third, although we take many steps to normalize the data, we do acknowledge that by using aggregated data we do run a risk of ecological fallacy. Finally, poorer households are more likely to take the standard deduction rather than itemize charitable donations \[6\] which means that charitable giving is likely to be under-reported for lower income groups.
 
 #### 3. Data Wrangling
 
-To normalize the data and avoid the common pitfall of using ZIP codes for analysis [@Forrest2019] we’ve chosen to merge the ZIP codes with US Census Bureau county geographies using the Housing and Urban Development’s HUD USPS -ZIP Crosswalk file for the 4th quarter of 2022 [@HUD]. We've also calculated proportional statistics such as agi per return as a method of standardization, and excluded counties containing less than 1,000 returns to limit potential bias from small population areas. Since we are interested in individuals, and not businesses, we use the provided residential ratio (from HUD file) to allocate ZIP code level data to residential addresses taking into account both the spatial distribution of population, and the spatial distribution of residences. Although not used in our model, we added groups regarding the number of returns to explore how the relationships between our main variables of interest may differ across these groups. The final data set contains 2,983 observations with 23 variables, which is further divided into exploration (30%) and confirmation (70%) sets. The model building process will be conducted using confirmation data to develop descriptive relationships, while the exploration set will be used for data exploration.
+To normalize the data and avoid the common pitfalls of using ZIP codes for analysis (9) we’ve chosen to merge the ZIP codes with US Census Bureau county geographies using the Housing and Urban Development’s USPS-ZIP Crosswalk file for the 4th quarter of 2022 (10). We've also calculated proportional statistics (agi per return etc.) as a method of standardization. Since we are interested in individuals, not businesses, we will use the provided residential ratio (from HUD file) to allocate ZIP code level data to residential addresses taking into account both the spatial distribution of population, and the spatial distribution of residences. Although not used in our model, we added groups regarding the number of returns to explore how the relationships between our main variables of interest may differ across these groups. The final data set contains 2,983 observations with 23 variables, which is further divided into exploration (30%) and confirmation (70%) sets.
 
 ```{r, data wrangling part 1}
 #Load IRS 2022 ZipCode level Statistics of Income data set
@@ -455,24 +450,21 @@ join_dist <- exploration_df %>%
 
 We constructed a sequence of 4 main regression models, incrementally adding theoretically relevant predictor variables to assess their impact on the outcome variable, mean_charitable_contributation_per_return. This sequential approach allows us to systematically examine the influence of different economic factors on philanthropic behavior per tax return.
 
-Our model building process begins by establishing the core relationship between income, as measured by mean_agi_per_return, and charitable contributions through several specifications. Model 1 examines a simple linear relationship. Model 2 introduces a quadratic term for mean_agi_per_return to capture potential non-linear effects. Model 3 explores a similar non-linear relationship using the natural logarithm of mean_agi_per_return and its squared term, to address the long-right tail shown from the distribution plots above. Models 4 and 5 incorporate variables that proxy for wealth and the availability of discretionary funds (mean_dividend_per_dividend_return, mean_capgain_per_capgain_return, and mean_rent_royalty_per_rent_royalty_return), stable income sources (mean_salary_per_salary_return), and tax-related variables (total_net_investment_income_tax_amount and mean_tax_payment_per_return).
+Our model building process begins by establishing the core relationship between income, as measured by mean_agi_per_return, and charitable contributions through several specifications. Model 1 examines a simple linear relationship. Model 2 introduces a quadratic term for mean AGI to capture potential non-linear effects. Model 3 explores a similar non-linear relationship using the natural logarithm of mean AGI and its squared term, to address the long-right tail shown from the distribution plots above. Models 4 and 5 incorporate variables that proxy for wealth and the availability of discretionary funds (mean dividend, mean cap gain, and mean rent royalty), stable income sources (mean salary), and tax-related variables (total net investment income tax amount and mean tax payment).
 
 ```{r estimate models}
 m1 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return, data = confirmation_df)
 m2 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return + I(mean_agi_per_return^2), data = confirmation_df)
-m3 <- lm(mean_charitable_contributation_per_return ~ log(mean_agi_per_return) + I(log(mean_agi_per_return)^2), data = confirmation_df)
 m4 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return + I(mean_agi_per_return^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return, data = confirmation_df)
 m5 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return + I(mean_agi_per_return^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return + mean_salary_per_salary_return, data = confirmation_df)
 
 vcov1 <- vcovHC(m1, type = "HC3")
 vcov2 <- vcovHC(m2, type = "HC3")
-vcov3 <- vcovHC(m3, type = "HC3")
 vcov4 <- vcovHC(m4, type = "HC3")
 vcov5 <- vcovHC(m5, type = "HC3")
 
 se1 <- get_robust_se(vcov1)
 se2 <- get_robust_se(vcov2)
-se3 <- get_robust_se(vcov3)
 se4 <- get_robust_se(vcov4)
 se5 <- get_robust_se(vcov5)
 
@@ -521,15 +513,17 @@ show_F_in_two_lines <- function(stargazer) {
 #| results: asis
 #| tbl-cap: Summary Table of the Models 
 #| tbl-pos: H
-stargazer(m1, m2, m3, m4, m5,
+stargazer(m1, m2, m4, m5,
   type = ifelse(knitr::is_latex_output(),"latex", "html"),
   no.space = T,
   # type = "text",
   header = F,
-  se = list(se1, se2, se3, se4, se5),
+  se = list(se1, se2, se4, se5),
   column.sep.width = ".001pt",
-  covariate.labels = c("Mean AGI", "Mean AGI**2", "Log(Mean AGI)", "Log(Mean AGI**2)", "Mean Dividend", "Mean Capgain",
+  covariate.labels = c("Mean AGI", "Mean AGI**2", "Mean Dividend", "Mean Capgain",
                        "Mean Rent Royalty", "Mean Salary", "Intercept"),
+  column.labels = c("(1)", "(2)", "(4)", "(5)"),
+  model.numbers = F,
   digits = 3, 
   font.size = "tiny",
   omit.stat = c('ser', 'rsq'),
@@ -541,7 +535,7 @@ show_F_in_two_lines()
 
 #### 7. Model Assumptions
 
-The first assumption for large-sample models that we use in the report is that the data is IID (Independent and Identically-Distributed). IID requires that each observation is independent from one another and that each comes from the same distribution. The use of IRS Statistics of Income (SOI) data presents some potential challenges to this IID assumption, though our transformation of the data attempts to mitigate these concerns. The raw data is aggregated at the ZIP code level, which inherently introduces a degree of spatial dependence. We address this by allocating the ZIP code level data to individual residential addresses using HUD USPS ZIP Code Crosswalk files and residential ratios, aiming to better reflect the distribution of individuals. While this transformation helps to normalize the data and reduce the impact of ZIP code-level aggregation, it's still plausible that some spatial correlation remains. Specifically, observations within the same county or neighboring areas might exhibit correlation due to shared socioeconomic factors, local policies, or regional economic conditions. This potential spatial autocorrelation could violate the independence assumption. Furthermore, while the IRS sampling process is stratified, the underlying heterogeneity of individual tax returns may still lead to concerns about the 'identically distributed' aspect. For instance, even within a county, the distribution of income and other financial behaviors can vary. Additionally, our attempt to fix the issue with identical distribution by excluding counties with less than 1,000 number of returns may reveal partial picture of the relationship between the variables of our interest.
+The first assumption for large-sample models is that the data is IID, where each observation is independent from one another and that each comes from the same distribution. The use of IRS Statistics of Income (SOI) data presents some potential challenges to this IID assumption. The raw data is aggregated at the ZIP code level, which inherently introduces a degree of spatial dependence. While we normalize the data by allocating the ZIP code level data to individual residential addresses to reduce the impact of ZIP-level aggregation, observation within the same county or neighboring areas may exhibit correlation from shared socioeconomic or regional conditions which may violate the independence assumption. Furthermore, while the IRS sampling process is stratified, the underlying heterogeneity of individual tax returns may still lead to concerns about the 'identically distributed' aspect. For instance, even within a county, the distribution of income and other financial behaviors can vary. Additionally, our attempt to fix the issue with identical distribution by excluding counties with less than 1,000 number of returns may reveal partial picture of the relationship between the variables of our interest.
 
 ```{r}
 var_pred <- sqrt(sd(exploration_df$mean_agi_per_return))
@@ -554,8 +548,6 @@ The second assumption is that a unique BLP should exist, where the explanatory v
 #### 8. Model Results and Interpretation
 
 The regression models demonstrate a statistically significant relationship between the predictor variables and mean charitable contributions per return. All nine models are statistically significant overall (p \< 2.2e-16), indicating they explain a significant portion of the variation in the dependent variable. The models vary in their explanatory power, as measured by adjusted R-squared. Models 1 and 2 have lower adjusted R-squared values compared to Models 4 and 5, indicating that including wealth/investment income and salary significantly improves the model ability to explain charitable contributions. Specifically, Model 1, which includes only mean AGI, explains 60.2% of the variation in charitable giving. Model 2 improves upon this by adding a squared term for AGI, suggesting a non-linear relationship, and increases the adjusted R-squared to 0.706. Models 4 and 5 further enhance the explanatory power. Model 4, which incorporates wealth/investment income (mean dividend, capital gains, and rent/royalty income), reaches an adjusted R-squared of 0.785, demonstrating the importance of these factors in predicting charitable giving. Finally, Model 5, with the inclusion of salary income, achieves an adjusted R-squared of 0.790. This progression illustrates that charitable giving is influenced by multiple factors, with income, wealth/investment income, and salary all playing significant roles. Although subsequent models (6 and 7) have slightly higher R-squared values, Model 5 may be a better candidate due to its balance of explanatory power and parsimony. See the appendix for details on Models 6 and 7.
-
-At lower income levels, charitable contributions may decrease slightly as income increases, but beyond a certain point, contributions increase at an increasing rate. For example, consider two hypothetical taxpayers: Taxpayer A with an AGI of \$50,000, and Taxpayer B with an AGI of \$100,000. According to the model, Taxpayer B is predicted to donate more than Taxpayer A, but the increase in donation amount is not directly proportional to the income increase. As income increases further, the model predicts a more substantial increase in charitable giving. Both dividend income (mean_dividend_per_dividend_return) and capital gains (mean_capgain_per_capgain_return) have a positive and significant effect on charitable giving. Higher returns from dividends and capital gains are associated with increased charitable contributions. If a taxpayer's dividend income increases by \$1,000, their predicted charitable contributions increase by approximately \$60.83. Similarly, a \$1,000 increase in capital gains is associated with an \$8.47 increase in predicted charitable contributions. Salary (mean_salary_per_salary_return) also has a positive and significant effect; a \$1,000 increase in salary is associated with an \$18.40 increase in predicted charitable contributions.In broader terms, the results suggest that charitable giving is a complex behavior influenced by multiple factors. While income plays a role, wealth and stable income (salary) also have significant impacts. This has implications for fundraising strategies, which might target individuals with high income, investment returns, and stable employment. The non-linear relationship with AGI suggests that the impact of income on giving varies across income levels.
 
 A \$1,000 increase in mean salary is predicted to increase charitable contributions by \$12, holding other variables constant. This suggests that a \$10,000 increase in salary would lead to an additional \$120 in predicted charitable giving, indicating a positive relationship between salary and charitable donations. For every \$1,000 increase in mean dividend income, charitable contributions are predicted to increase by \$54 (coefficient = 0.054), suggesting individuals with higher dividend earnings are, on average, expected to donate more, highlighting the influence of investment income on charitable giving. Similarly, a \$1,000 increase in mean capital gains is associated with a \$6 increase in charitable contributions (coefficient = 0.006). This indicates that capital gains also positively affect charitable giving. Finally, the model captures a non-linear relationship between adjusted gross income and charitable giving. At lower income levels (e.g., AGI of \$30,000), the model might predict a smaller increase in charitable giving for each additional \$1,000 of income, compared to someone with a high income (e.g., AGI of \$100,000). For the higher-income individual, the model predicts that each additional \$1,000 of income will lead to a more substantial increase in charitable contributions. This pattern suggests an U-shape relationship between AGI and charitable donations. The coefficients for mean AGI and mean AGI squared are -0.007 and 0.0001 respectively. Mean rent royalty has a coefficient of 0.003.
 
@@ -590,8 +582,9 @@ var_labels <- c("Mean AGI", "Mean AGI**2", "Log(Mean AGI)", "Log(Mean AGI**2)", 
                 "Mean Rent Royalty", "Mean Salary", "Total Net Investment", "Mean Tax Payment", "Intercept")
 
 
-  covariate.labels = c("Mean AGI", "Mean AGI**2", "Log(Mean AGI)", "Log(Mean AGI**2)", "Mean Dividend", "Mean Capgain",
-                       "Mean Rent Royalty", "Mean Salary", "Intercept")
+
+m3 <- lm(mean_charitable_contributation_per_return ~ log(mean_agi_per_return) + I(log(mean_agi_per_return)^2), data = confirmation_df)
+
 m6 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return + I(mean_agi_per_return^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return + mean_salary_per_salary_return + total_net_investment_income_tax_amount, data = confirmation_df)
 
 m7 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return + I(mean_agi_per_return^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return + mean_salary_per_salary_return + total_net_investment_income_tax_amount + mean_tax_payment_per_return, data = confirmation_df)
@@ -600,12 +593,13 @@ m8 <- lm(mean_charitable_contributation_per_return ~ log(mean_agi_per_return) + 
 
 m9 <- lm(mean_charitable_contributation_per_return ~ log(mean_agi_per_return) + I(log(mean_agi_per_return)^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return + mean_salary_per_salary_return + total_net_investment_income_tax_amount + mean_tax_payment_per_return, data = confirmation_df)
 
+vcov3 <- vcovHC(m3, type = "HC3")
 vcov6 <- vcovHC(m6, type = "HC3")
 vcov7 <- vcovHC(m7, type = "HC3")
 vcov8 <- vcovHC(m8, type = "HC3")
 vcov9 <- vcovHC(m9, type = "HC3")
 
-
+se3 <- get_robust_se(vcov3)
 se6 <- get_robust_se(vcov6)
 se7 <- get_robust_se(vcov7)
 se8 <- get_robust_se(vcov8)
@@ -613,13 +607,13 @@ se9 <- get_robust_se(vcov9)
 
 
 
-stargazer(m1, m6, m7, m8, m9,
+stargazer(m1, m3, m6, m7, m8, m9,
   type = ifelse(knitr::is_latex_output(),"latex", "html"),
   # type = "text",
   header = F,
-  se = list(se1, se6, se7, se8, se9),
+  se = list(se1, se3, se6, se7, se8, se9),
   column.sep.width = ".001pt",
-  column.labels = c("(1)", "(6)", "(7)", "(8)", "(9)"),
+  column.labels = c("(1)", "(3)", "(6)", "(7)", "(8)", "(9)"),
   model.numbers = F,
   font.size = "tiny",
   covariate.labels = var_labels,
