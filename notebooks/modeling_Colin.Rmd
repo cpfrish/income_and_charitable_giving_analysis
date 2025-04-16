@@ -1,0 +1,615 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+---
+title: "OLS Regression of Charitable Contributions on Income"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+  pdf_document:
+    toc: true
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r include=FALSE}
+# Install and load necessary libraries
+if(!require(dplyr)){install.packages("dplyr")}
+if(!require(lmtest)){install.packages("lmtest")}
+if(!require(sandwich)){install.packages("sandwich")}
+if(!require(stargazer)){install.packages("stargazer")}
+if(!require(Metrics)){install.packages("Metrics")}
+
+library(dplyr)
+library(lmtest)
+library(sandwich)
+library(stargazer)
+library(Metrics)
+library(ggplot2); theme_set(theme_classic())
+library(knitr)
+library(tidyverse)
+```
+
+```{r include=FALSE}
+df <- read.csv("../data/interim/interim_county_irs_grouped.csv")
+```
+
+### Data Splitting
+
+```{r include=FALSE}
+# Set a seed for reproducibility
+set.seed(123)
+
+# Determine the number of rows
+n_rows <- nrow(df)
+# Calculate the size of the exploration and confirmation sets (30%/70%)
+exploration_size <- floor(0.3 * n_rows)
+confirmation_size <- n_rows - exploration_size
+
+
+# Randomly sample indices for the exploration set
+exploration_indices <- sample(1:n_rows, size = exploration_size, replace = FALSE)
+
+# Create the exploration and confirmation data frames
+exploration_df <- df[exploration_indices, ]
+confirmation_df <- df[-exploration_indices, ]
+
+
+```
+
+### EDA
+
+```{r histograms}
+exploration_df %>%
+  ggplot(aes(x = mean_charitable_contributation_per_return)) +
+  geom_histogram(aes(y = stat(count/sum(count)))) +
+  labs(x = "Mean Charitable Contribution per Return", y = "Proportion",
+       title = "Histogram of Mean Charitable Contribution per Return")
+
+exploration_df %>%
+  ggplot(aes(x = mean_agi_per_return)) +
+  geom_histogram(aes(y = stat(count/sum(count)))) +
+  labs(x = "Mean AGI per Return", y = "Proportion",
+       title = "Histogram of Mean AGI per Return")
+
+
+exploration_df %>%
+  ggplot(aes(x = mean_agi_per_return, y = mean_charitable_contributation_per_return)) +
+  geom_point() + 
+  geom_smooth(method = "lm")
+
+exploration_df %>%
+  ggplot(aes(x = mean_agi_per_return, y = mean_charitable_contributation_per_return)) +
+  geom_point() + 
+  geom_smooth(method = "lm", formula = y ~ x + I(x^2))
+
+exploration_df %>%
+  ggplot(aes(x = log(mean_agi_per_return))) +
+  geom_histogram()
+
+exploration_df %>%
+  ggplot(aes(x = mean_dividend_per_dividend_return)) +
+  geom_histogram()
+
+
+exploration_df %>%
+  ggplot(aes(x = mean_capgain_per_capgain_return)) +
+  geom_histogram()
+
+exploration_df %>%
+  ggplot(aes(x = mean_rent_royalty_per_rent_royalty_return)) +
+  geom_histogram()
+
+
+exploration_df %>%
+  ggplot(aes(x = mean_salary_per_salary_return)) +
+  geom_histogram()
+
+
+
+exploration_df %>%
+  ggplot(aes(x = total_net_investment_income_tax_amount)) +
+  geom_histogram()
+
+
+exploration_df %>%
+  ggplot(aes(x = mean_tax_payment_per_return)) +
+  geom_histogram()
+
+```
+
+### Operationalization
+
+The selection and transformation of variables are crucial steps in building a robust and interpretable model. We operationalize the key concepts from the literature on charitable giving as follows. Income is represented by mean_agi_per_return, which captures the average adjusted gross income per tax return. To account for potential non-linear effects of income, we include both a quadratic term (mean_agi_per_return squared) and logarithmic transformations (natural logarithm of mean_agi_per_return and its squared term). Wealth and the availability of discretionary funds are operationalized using mean_dividend_per_dividend_return, mean_capgain_per_capgain_return, and mean_rent_royalty_per_rent_royalty_return, representing average income from dividends, capital gains, and rent/royalties, respectively. Stable income sources are captured by mean_salary_per_salary_return, the average salary per tax return. Finally, to operationalize the influence of tax incentives, we include total_net_investment_income_tax_amount and mean_tax_payment_per_return.
+
+This approach translates the theoretical concepts of income, wealth, and tax effects into specific, measurable variables. The transformations applied to mean_agi_per_return are designed to address its potentially skewed distribution and to capture non-linear relationships with charitable giving. For instance, the quadratic term allows us to model a potential U-shaped or inverted U-shaped relationship, while the logarithmic transformation can help normalize the data and allows us to interpret the coefficient on income as an elasticity.
+
+
+### Model Specifications
+We constructed a sequence of 4 main regression models, incrementally adding theoretically relevant predictor variables to assess their impact on the outcome variable, mean_charitable_contributation_per_return. This sequential approach allows us to systematically examine the influence of different economic factors on philanthropic behavior per tax return.
+
+Our model building process begins by establishing the core relationship between income, as measured by mean_agi_per_return, and charitable contributions through several specifications. Model 1 examines a simple linear relationship. Model 2 introduces a quadratic term for mean_agi_per_return to capture potential non-linear effects. Model 3 explores a similar non-linear relationship using the natural logarithm of mean_agi_per_return and its squared term. Models 4 and 5 incorporate variables that proxy for wealth and the availability of discretionary funds (mean_dividend_per_dividend_return, mean_capgain_per_capgain_return, and mean_rent_royalty_per_rent_royalty_return), stable income sources (mean_salary_per_salary_return), and tax-related variables (total_net_investment_income_tax_amount and mean_tax_payment_per_return). 
+
+The results of all model specifications are displayed in a regression table, as shown in the Appendix.
+
+### OLS Assumptions
+
+#### IID
+
+The use of IRS Statistics of Income (SOI) data presents some potential
+challenges to the IID assumption, though our transformation of the data
+attempts to mitigate these concerns. The raw data is aggregated at the
+ZIP code level, which inherently introduces a degree of spatial
+dependence. We address this by allocating the ZIP code level data to
+individual residential addresses using HUD USPS ZIP Code Crosswalk files
+and residential ratios, aiming to better reflect the distribution of
+individuals. While this transformation helps to normalize the data and
+reduce the impact of ZIP code-level aggregation, it's still plausible
+that some spatial correlation remains. Specifically, observations within
+the same county or neighboring areas might exhibit correlation due to
+shared socioeconomic factors, local policies, or regional economic
+conditions. This potential spatial autocorrelation could violate the
+independence assumption. Furthermore, while the IRS sampling process is
+stratified, the underlying heterogeneity of individual tax returns may
+still lead to concerns about the 'identically distributed' aspect. For
+instance, even within a county, the distribution of income and other
+financial behaviors can vary.
+
+#### BLP Exist
+
+The BLP, by definition, assumes a linear relationship between the
+dependent variable and the independent variables. We can assess the
+appropriateness of this assumption by:
+
+Scatter Plots: Visualizing the relationship between each independent
+variable and the dependent variable using scatter plots. Look for
+non-linear patterns.
+
+Residual Analysis: After estimating a linear model, examine the
+residuals for non-linear patterns. For example, a scatter plot of
+residuals against predicted values might reveal a curved pattern.
+
+### Model Building
+
+```{r include=FALSE}
+# Model 1: Simple OLS (Income)
+model1 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return, data = confirmation_df)
+#robust_summary_model1 <- coeftest(model1, vcov = vcovHC(model1, type = "HC3"))
+robust_summary_model1 <- vcovHC(model1, type = "HC3")
+#print("Summary of Model 1 (Simple OLS with Robust SE):")
+#print(summary(model1))
+#print("\nCoefficients (with Robust Standard Errors) - Model 1:")
+#print(robust_summary_model1)
+#cat("\n")
+```
+
+```{r include=FALSE}
+# Model 2: Polynomial Income (Quadratic)
+model2 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return + I(mean_agi_per_return^2), data = confirmation_df)
+robust_summary_model2 <- vcovHC(model1, type = "HC3")
+#print("Summary of Model 2 (Polynomial Income with Robust SE):")
+#print(summary(model2))
+#print("\nCoefficients (with Robust Standard Errors) - Model 2:")
+#print(robust_summary_model2)
+#cat("\n")
+```
+
+```{r include=FALSE}
+# Model 3: Log Income with Quadratic Term
+model3 <- lm(mean_charitable_contributation_per_return ~ log(mean_agi_per_return) + I(log(mean_agi_per_return)^2), data = confirmation_df)
+robust_summary_model3 <- coeftest(model3, vcov = vcovHC(model3, type = "HC3"))
+# print("Summary of Model 3 (Log Income with Quadratic Term with Robust SE):")
+# print(summary(model3))
+# print("\nCoefficients (with Robust Standard Errors) - Model 3:")
+# print(robust_summary_model3)
+# cat("\n")
+```
+
+```{r include=FALSE}
+# Model 4: Adding Wealth/Investment Income
+model4 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return + I(mean_agi_per_return^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return, data = confirmation_df)
+robust_summary_model4 <- coeftest(model4, vcov = vcovHC(model4, type = "HC3"))
+# print("Summary of Model 4 (Adding Wealth/Investment Income with Robust SE):")
+# print(summary(model4))
+# print("\nCoefficients (with Robust Standard Errors) - Model 4:")
+# print(robust_summary_model4)
+# cat("\n")
+```
+
+```{r include=FALSE}
+# Model 5: Adding Stable Income (Salary)
+model5 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return + I(mean_agi_per_return^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return + mean_salary_per_salary_return, data = confirmation_df)
+robust_summary_model5 <- coeftest(model5, vcov = vcovHC(model5, type = "HC3"))
+# print("Summary of Model 5 (Adding Stable Income with Robust SE):")
+# print(summary(model5))
+# print("\nCoefficients (with Robust Standard Errors) - Model 5:")
+# print(robust_summary_model5)
+# cat("\n")
+```
+
+```{r include=FALSE}
+# Model 6: Adding Tax-Related Variable (Investment Income Tax)
+model6 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return + I(mean_agi_per_return^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return + mean_salary_per_salary_return + total_net_investment_income_tax_amount, data = confirmation_df)
+robust_summary_model6 <- vcovHC(model1, type = "HC3")
+robust_summary_model6
+#model6
+#print("Summary of Model 6 (Adding Investment Income Tax with Robust SE):")
+#print(summary(model6))
+#print("\nCoefficients (with Robust Standard Errors) - Model 6:")
+#print(robust_summary_model6)
+#cat("\n")
+```
+
+```{r include=FALSE}
+# Model 7: Adding Another Tax-Related Variable (Tax Payment)
+model7 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return + I(mean_agi_per_return^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return + mean_salary_per_salary_return + total_net_investment_income_tax_amount + mean_tax_payment_per_return, data = confirmation_df)
+robust_summary_model7 <- coeftest(model7, vcov = vcovHC(model7, type = "HC3"))
+# print("Summary of Model 7 (Adding Tax Payment with Robust SE):")
+# print(summary(model7))
+# print("\nCoefficients (with Robust Standard Errors) - Model 7:")
+# print(robust_summary_model7)
+# cat("\n")
+```
+
+```{r include=FALSE}
+# Model 8: Log Income with Quadratic Term and Wealth/Investment Income
+model8 <- lm(mean_charitable_contributation_per_return ~ log(mean_agi_per_return) + I(log(mean_agi_per_return)^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return, data = confirmation_df)
+robust_summary_model8 <- coeftest(model8, vcov = vcovHC(model8, type = "HC3"))
+# print("Summary of Model 8 (Log Income and Wealth/Investment Income with Robust SE):")
+# print(summary(model8))
+# print("\nCoefficients (with Robust Standard Errors) - Model 8:")
+# print(robust_summary_model8)
+# cat("\n")
+```
+
+```{r include=FALSE}
+# Model 9: Log Income with Quadratic Term and All Other Variables
+model9 <- lm(mean_charitable_contributation_per_return ~ log(mean_agi_per_return) + I(log(mean_agi_per_return)^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return + mean_salary_per_salary_return + total_net_investment_income_tax_amount + mean_tax_payment_per_return, data = confirmation_df)
+robust_summary_model9 <- coeftest(model9, vcov = vcovHC(model9, type = "HC3"))
+robust_summary_model9
+# print("Summary of Model 9 (Log Income and All Other Variables with Robust SE):")
+# print(summary(model9))
+# print("\nCoefficients (with Robust Standard Errors) - Model 9:")
+# print(robust_summary_model9)
+# cat("\n")
+```
+
+```{r include=FALSE}
+se1 <- vcovHC(model1, type = "HC3")
+rse1 <- sqrt(diag(se1))
+
+se2 <- vcovHC(model2, type = "HC3")
+rse2 <- sqrt(diag(se2))
+
+se3 <- vcovHC(model3, type = "HC3")
+rse3 <- sqrt(diag(se3))
+
+se4 <- vcovHC(model4, type = "HC3")
+rse4 <- sqrt(diag(se4))
+
+se5 <- vcovHC(model5, type = "HC3")
+rse5 <- sqrt(diag(se5))
+
+se6 <- vcovHC(model6, type = "HC3")
+rse6 <- sqrt(diag(se6))
+
+se7 <- vcovHC(model7, type = "HC3")
+rse7 <- sqrt(diag(se7))
+
+se8 <- vcovHC(model8, type = "HC3")
+rse8 <- sqrt(diag(se8))
+
+se9 <- vcovHC(model9, type = "HC3")
+rse9 <- sqrt(diag(se9))
+```
+
+```{r building stargazer}
+m1 <- model1
+m2 <- model2
+m3 <- model3
+m4 <- model4
+m5 <- model5
+m6 <- model6
+m7 <- model7
+m8 <- model8
+m9 <- model9
+
+show_F_in_two_lines <- function(stargazer) {
+  # `Stringr` works better than base's regex 
+  require(stringr)
+
+  # If you remove `capture.output()`, not only the modified LaTeX code 
+  # but also the original code would show up
+  stargazer <- stargazer |>
+    capture.output()
+
+  # Reuse the index in which F-statistics are displayed
+  position_F <- str_which(stargazer, "F Statistic")
+
+  # Extract only F-statistics
+  Fs <- stargazer[position_F] |>
+    str_replace_all("\\(.*?\\)", "")
+
+  # Extract only df values and make a new line for them
+  dfs <- stargazer[position_F] |>
+    str_extract_all("\\(.*?\\)") |>
+    unlist() |>
+    (
+      \(dfs)
+      paste0(" & ", dfs, collapse = "")
+    )() |>
+    paste0(" \\\\")
+
+  # Reuse table elements that are specified
+  # after the index of F-statistics
+  after_Fs <- stargazer[-seq_len(position_F)]
+
+  c(
+    stargazer[seq_len(position_F - 1)],
+    Fs,
+    dfs,
+    after_Fs
+  ) |>
+    cat(sep = "\n")
+}
+
+summary(m5)
+cov_labels <- c("mean AGI", "mean AGI**2", "log(mean AGI)", 
+                "log(mean AGI**2", "mean dividend", "mean capgain", "mean rent royalty",
+                "mean salary",  "Intercept")
+
+
+cov_labels2 <- c("mean AGI", "mean AGI**2", "log(mean AGI)", 
+                "log(mean AGI**2", "mean dividend", "mean capgain", "mean rent royalty",
+                "mean salary", "net investment income","total net investment income tax amount", "mean tax payment", "Intercept")
+
+stargazer(m1, m2, m3, m4, m5, type = "latex",
+          out = "stargazertable.tex",
+          se = list(se1, se2, se3, se4, se5),
+          header = F,
+          font.size = "tiny",
+          table.placement = "t",
+          column.sep.width = ".001pt",
+          omit.stat = c("ser", "rsq"),
+          covariate.labels = cov_labels,
+          dep.var.caption = "Dependent Variable: mean charitable contribution",
+          dep.var.labels.include = F,
+          float = F,
+          digits = 3,
+          notes = c("Robust standard errors are displayed.", "The covariate names omit per unit (e.g., per return) due to space limit.")) %>%
+  show_F_in_two_lines()
+  
+
+stargazer(m1, m6, m7, m8, m9, type = "latex",
+          se = list(se1, se6, se7, se8, se9),
+          header = F,
+          font.size = "tiny",
+          table.placement = "b",
+          column.sep.width = ".001pt",
+          column.labels = c("(1)", "(6)", "(7)", "(8)", "(9)"),
+          model.numbers = F,
+          omit.stat = c("ser", "rsq"),
+          covariate.labels = cov_labels2,
+          dep.var.caption = "Dependent Variable: mean charitable contribution",
+          dep.var.labels.include = F,
+          float = F,
+          digits = 3,
+          notes = c("Robust standard errors are displayed.", "The covariate names omit per unit (e.g., per return) due to space limit.")) %>%
+  show_F_in_two_lines()
+
+
+# are we going to use rsq or adjusted rsq?
+```
+
+### Results & Discussion
+
+#### Statstical Significance
+The regression models demonstrate a statistically significant relationship between the predictor variables and mean charitable contributions per return. All nine models are statistically significant overall (p-value < 2.2e-16), indicating they explain a significant portion of the variation in the dependent variable. The models vary in their explanatory power, as measured by adjusted R-squared. Models 1 and 2 have lower adjusted R-squared values compared to Models 4 and 5, indicating that including wealth/investment income and salary significantly improves the model ability to explain charitable contributions. Specifically, Model 1, which includes only mean AGI, explains 60.2% of the variation in charitable giving. Model 2 improves upon this by adding a squared term for AGI, suggesting a non-linear relationship, and increases the adjusted R-squared to 0.706. Models 4 and 5 further enhance the explanatory power. Model 4, which incorporates wealth/investment income (mean dividend, capital gains, and rent/royalty income), reaches an adjusted R-squared of 0.785, demonstrating the importance of these factors in predicting charitable giving. Finally, Model 5, with the inclusion of salary income, achieves an adjusted R-squared of 0.790. This progression illustrates that charitable giving is influenced by multiple factors, with income, wealth/investment income, and salary all playing significant roles. Although subsequent models (6 and 7) have slightly higher R-squared values, Model 5 may be a better candidate due to its balance of explanatory power and parsimony. See the appendix for details on Models 6 and 7.
+
+#### Practical Significance
+A \\$1,000 increase in mean salary is predicted to increase charitable contributions by \\$12, holding other variables constant.  This suggests that a \\$10,000 increase in salary would lead to an additional \\$120 in predicted charitable giving, indicating a positive relationship between salary and charitable donations.  For every \\$1,000 increase in mean dividend income, charitable contributions are predicted to increase by \\$54 (coefficient = 0.054), suggesting individuals with higher dividend earnings are, on average, expected to donate more, highlighting the influence of investment income on charitable giving.  Similarly, a \\$1,000 increase in mean capital gains is associated with a \\$6 increase in charitable contributions (coefficient = 0.006). This indicates that capital gains also positively affect charitable giving.  Finally, the model captures a non-linear relationship between adjusted gross income and charitable giving. At lower income levels (e.g., AGI of \\$30,000), the model might predict a smaller increase in charitable giving for each additional \\$1,000 of income, compared to someone with a high income (e.g., AGI of \\$100,000). For the higher-income individual, the model predicts that each additional \\$1,000 of income will lead to a more substantial increase in charitable contributions. This pattern suggests an inverted U-shape relationship between AGI and charitable donations. The coefficients for mean AGI and mean AGI squared are -0.007 and 0.0001 respectively. Mean rent royalty has a coefficient of 0.003. 
+
+In a broader sense, these findings indicate that charitable giving is a complex behavior influenced by a combination of factors. Stable income, such as salary, and income from investments, such as dividends and capital gains, both play a role. The non-linear effect of AGI suggests that the propensity to donate changes as income levels vary. This has implications for charitable organizations, which may tailor their fundraising efforts to different income groups and those with different sources of income.
+
+
+### Appendix
+
+
+
+Model uses log(mean AGI) and its squared term, also suggesting a non-linear relationship between income and charitable giving, similar to the findings in the main models. Both coefficients are statistically significant. Because of the log transformation, the coefficients are interpreted as elasticities.  The adjusted R-squared of 0.644 indicates that Model 3 explains 64.4% of the variance in charitable giving, showing that even when AGI is log-transformed, it remains a significant predictor of donations.
+
+Models 6, 7, 8, and 9 show that including wealth/investment, salary, and tax-related variables further improves the model's ability to explain charitable contributions, though some variables like rent royalty and tax payments are not always significant.  The adjusted R-squared values for these models are:
+
+Model 6 has an adjusted R-squared of 0.792 (indicating it explains 79.2% of the variance).  This shows that by adding more variables, the explanatory power of the model increases compared to the earlier models.
+
+Model 7 has an adjusted R-squared of 0.792 (indicating it also explains 79.2% of the variance).  This suggests that Model 7, with its specific set of additional variables, explains a similar amount of variance as Model 6.
+
+Model 8 uses log(mean AGI) and its squared term and has an adjusted R-squared of 0.762 (indicating it explains 76.2% of the variance).  This indicates that using the log of AGI in this model results in slightly lower explanatory power than Models 6 and 7.
+
+Model 9 uses log(mean AGI) and its squared term, and also includes mean dividend, mean campgain, mean rent royalty, and mean salary. It has an adjusted R-squared of 0.770 (indicating it explains 77.0% of the variance).  This shows that even with the inclusion of several income variables, the model's explanatory power is still slightly lower than Models 6 and 7.
+
+```{r}
+
+# Load libraries
+library(lmtest)
+library(dplyr)
+library(broom)
+library(knitr)
+library(scales)
+
+
+model_list <- list(
+"Model 1" = model1,
+"Model 2" = model2,
+"Model 3" = model3,
+"Model 4" = model4,
+"Model 5" = model5,
+"Model 6" = model6,
+"Model 7" = model7,
+"Model 8" = model8,
+"Model 9" = model9
+)
+
+
+# --- Step 1: Run Breusch-Pagan Test for all models and create a table ---
+
+bp_results_list <- list()
+
+# Check if model_list exists and has elements
+if (exists("model_list") && length(model_list) > 0) {
+for (i in 1:length(model_list)) {
+model_name <- names(model_list)[i]
+if (is.null(model_name)) {
+model_name <- paste("Model", i)
+}
+current_model <- model_list[[i]]
+
+# Perform Breusch-Pagan test
+bp_test <- bptest(current_model)
+
+# Tidy the result and add model name
+bp_results_list[[model_name]] <- tidy(bp_test) %>%
+mutate(Model = model_name) %>%
+select(Model, statistic, p.value) # Select relevant columns
+}
+
+# Combine results into a single data frame
+bp_results_table <- bp_results_table %>%
+mutate(p.value_formatted = format(p.value, scientific = TRUE, digits = 3))
+
+
+print("Final Breusch-Pagan Test Results Table:")
+# Print the table using kable, now using the formatted p-value
+# Select the columns you want in the final table order
+print(
+kable(
+bp_results_table %>% select(Model, statistic, p.value_formatted),
+#digits = 3, # Not needed as much if formatting pre-applied
+col.names = c("Model", "BP Statistic", "p-value"),
+# Nicer column names
+caption = "Breusch-Pagan Test Results for Homoskedasticity"
+)
+)
+
+} else {
+print("No successful Breusch-Pagan test results were collected.")
+}
+# --- Step 2: Generate Diagnostic Plots for each model ---
+
+
+
+# Check if model_list exists and has elements
+if (exists("model_list") && length(model_list) > 0) {
+# Loop through each model to generate plots
+for (i in 1:length(model_list)) {
+model_name <- names(model_list)[i]
+if (is.null(model_name)) {
+model_name <- paste("Model", i)
+}
+current_model <- model_list[[i]]
+
+print(paste("Generating diagnostic plots for:", model_name))
+
+# Set up plot layout for the 3 plots + 1 empty space
+par(mfrow = c(2, 2))
+
+# Plot 1: Residuals vs Fitted
+plot(
+current_model,
+which = 1,
+main = paste(model_name, "- Residuals vs Fitted")
+)
+
+# Plot 2: Normal Q-Q
+plot(
+current_model,
+which = 2,
+main = paste(model_name, "- Normal Q-Q Plot")
+)
+
+# Plot 3: Scale-Location
+plot(
+current_model,
+which = 3,
+main = paste(model_name, "- Scale-Location Plot")
+)
+
+
+plot.new()
+mtext(
+paste("Diagnostic Plots for", model_name),
+side = 3,
+line = -2,
+outer = TRUE,
+cex = 1.2
+)
+
+
+Sys.sleep(2) # Pause for 2 seconds before showing next set
+
+}
+
+# Reset plotting parameters to default when done
+par(mfrow = c(1, 1), ask = FALSE)
+
+} else {
+print("Error: 'model_list' not found or is empty. Cannot generate plots.")
+}
+
+#visualize the p-values from the BP test table
+
+if (exists("bp_results_table")) {
+
+# Define the significance level
+alpha <- 0.05
+
+plot_bp_pvalues_log <- ggplot(bp_results_table, aes(x = reorder(Model, p.value), y = p.value)) +
+geom_col(fill = "skyblue") + # Use geom_col for bar chart (plots height directly)
+# Add significance line - use log10(alpha) for its position on the log scale
+geom_hline(yintercept = alpha,
+linetype = "dashed",
+color = "red") +
+scale_y_log10(
+name = "p-value (log10 scale)",
+breaks = 10^seq(-150, 0, by = 10),
+labels = scales::trans_format("log10", scales::math_format(10^.x))
+) +
+annotation_logticks(sides = "l") + # Add log tick marks on the left axis
+labs(
+title = "Breusch-Pagan Test p-values by Model (Log Scale)",
+subtitle = paste(
+"Lower p-value indicates significant heteroskedasticity (Bars crossing red line where p <",
+alpha,
+")"
+),
+x = "Model",
+y = "p-value (log10 scale)" # Ensure label matches scale_y_log10 name
+) +
+theme_minimal() +
+theme(axis.text.x = element_text(angle = 45, hjust = 1)) # Rotate x-axis labels if needed
+
+print(plot_bp_pvalues_log)
+
+} else {
+print("Error: 'bp_results_table' not found. Cannot generate plot.")
+}
+
+
+```
+
+
+```{r}
+print(bp_results_table)
+```
+
