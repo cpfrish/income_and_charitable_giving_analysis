@@ -490,14 +490,11 @@ mutate(p.value_formatted = format(p.value, scientific = TRUE, digits = 3))
 
 
 print("Final Breusch-Pagan Test Results Table:")
-# Print the table using kable, now using the formatted p-value
-# Select the columns you want in the final table order
+# Print the table using kable
 print(
 kable(
 bp_results_table %>% select(Model, statistic, p.value_formatted),
-#digits = 3, # Not needed as much if formatting pre-applied
 col.names = c("Model", "BP Statistic", "p-value"),
-# Nicer column names
 caption = "Breusch-Pagan Test Results for Homoskedasticity"
 )
 )
@@ -575,7 +572,7 @@ if (exists("bp_results_table")) {
 alpha <- 0.05
 
 plot_bp_pvalues_log <- ggplot(bp_results_table, aes(x = reorder(Model, p.value), y = p.value)) +
-geom_col(fill = "skyblue") + # Use geom_col for bar chart (plots height directly)
+geom_col(fill = "skyblue") + 
 # Add significance line - use log10(alpha) for its position on the log scale
 geom_hline(yintercept = alpha,
 linetype = "dashed",
