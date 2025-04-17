@@ -53,6 +53,7 @@ library(stargazer)
 
 library(stats)
 library(lmtest)
+library(car)
 ```
 
 ```{r set plotting theme}
@@ -444,23 +445,21 @@ join_dist <- exploration_df %>%
 
 #### 6. Model Specification
 
-We constructed a sequence of 4 main regression models, incrementally adding theoretically relevant predictor variables to assess their impact on the outcome variable, mean_charitable_contributation_per_return. This sequential approach allows us to systematically examine the influence of different economic factors on philanthropic behavior per tax return. Our base model (Model 1) is a relationship between income, as measured by mean AGI, and charitable contributions. Model 2 introduces quadratic term to capture non-linear relationship. Models 4 and 5 incorporate variables that proxy for wealth and the availability of discretionary funds, stable income sources, and tax-related variables. (Model 3 with natural log is specified in Appendix.)
+We constructed a sequence of 4 main regression models, incrementally adding theoretically relevant predictor variables to assess their impact on the outcome variable, mean_charitable_contributation_per_return. This sequential approach allows us to systematically examine the influence of different economic factors on philanthropic behavior per tax return. Our base model (Model 1) is a relationship between income, as measured by mean AGI, and charitable contributions. Model 2 introduces quadratic term to capture non-linear relationship. Models 4 incorporates variables that proxy for wealth and the availability of discretionary funds, stable income sources, and tax-related variables. (Model 3 with natural log is specified in Appendix.)
 
 ```{r estimate models}
 m1 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return, data = confirmation_df)
 m2 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return + I(mean_agi_per_return^2), data = confirmation_df)
 m4 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return + I(mean_agi_per_return^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return, data = confirmation_df)
-m5 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return + I(mean_agi_per_return^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return + mean_salary_per_salary_return, data = confirmation_df)
+
 
 vcov1 <- vcovHC(m1, type = "HC3")
 vcov2 <- vcovHC(m2, type = "HC3")
 vcov4 <- vcovHC(m4, type = "HC3")
-vcov5 <- vcovHC(m5, type = "HC3")
 
 se1 <- get_robust_se(vcov1)
 se2 <- get_robust_se(vcov2)
 se4 <- get_robust_se(vcov4)
-se5 <- get_robust_se(vcov5)
 
 # reporting df under F-statistics
 show_F_in_two_lines <- function(stargazer) {
@@ -507,16 +506,16 @@ show_F_in_two_lines <- function(stargazer) {
 #| results: asis
 #| tbl-cap: Summary Table of the Models 
 #| tbl-pos: H
-stargazer(m1, m2, m4, m5,
+stargazer(m1, m2, m4,
   type = ifelse(knitr::is_latex_output(),"latex", "html"),
   no.space = T,
   # type = "text",
   header = F,
-  se = list(se1, se2, se4, se5),
+  se = list(se1, se2, se4),
   column.sep.width = ".001pt",
   covariate.labels = c("Mean AGI", "Mean AGI**2", "Mean Dividend", "Mean Capgain",
-                       "Mean Rent Royalty", "Mean Salary", "Intercept"),
-  column.labels = c("(1)", "(2)", "(4)", "(5)"),
+                       "Mean Rent Royalty", "Intercept"),
+  column.labels = c("(1)", "(2)", "(4)"),
   model.numbers = F,
   digits = 3, 
   font.size = "tiny",
@@ -535,17 +534,19 @@ The first assumption for large-sample models that is that the data is IID (Indep
 var_pred <- sqrt(sd(exploration_df$mean_agi_per_return))
 var_outc <- sqrt(sd(exploration_df$mean_charitable_contributation_per_return))
 # var_outc
+vif4 <- vif(m4)
+# vif4[[1]]
 ```
 
-The second assumption is that a unique BLP should exist. Our visualizations show that both of our main predictor and outcome variables have a heavy right-tail, indicating a potential non-finite variance. We see that the regression model runs, meaning that there is no perfect colinearity. Although we see a non-infinite variance from our sample for exploration (mean AGI: `{r} round(var_pred, 2)` , mean charitable contribution: `{r} round(var_outc, 2)`), it should be noted that the underlying distribution may still have non-finite variance, which may violate our assumption for the presence of a unique BLP.
+The second assumption is that a unique BLP should exist. Our visualizations show that both of our main predictor and outcome variables have a heavy right-tail, indicating a potential non-finite variance. We see that vif values of our main interest variables below 5 (vif value for main predictor = `{r} round(vif4[[1]], 2)`), meaning there is no perfect collinearity. Although we see a non-infinite variance from our sample for exploration (mean AGI: `{r} round(var_pred, 2)` , mean charitable contribution: `{r} round(var_outc, 2)`), it should be noted that the underlying distribution may still have non-finite variance, which may violate our assumption for the presence of a unique BLP.
 
 #### 8. Model Results and Interpretation
 
-The models significantly predict mean charitable contributions (p \< .001), with adjusted R-squared values indicating varying explanatory power. Models 4 and 5, including wealth/investment income and salary, show higher explanatory power than Models 1 and 2 (which only include AGI and AGI squared). Specifically, Model 1 (mean AGI) explains 60.2%, while Model 2 (with AGI squared) increases this to 70.6%. Adding wealth/investment income (Model 4) further increases it to 78.5%, and including salary (Model 5) reaches 79.0%. This suggests income, wealth/investment, and salary significantly influence charitable giving.
+The models significantly predict mean charitable contributions (p \< .001), with adjusted R-squared values indicating varying explanatory power. Models 4, including wealth/investment income, show higher explanatory power than Models 1 and 2 (which only include AGI and AGI squared). Specifically, Model 1 (mean AGI) explains 60.2%, of the variance, while Model 2 (with AGI squared) increases this to 70.6%. Adding wealth/investment income (Model 4) further increases its explanatory power to 78.5%. This suggests income, wealth/investment, and salary significantly influence charitable giving.
 
-A \$1,000 increase in mean salary is predicted to increase charitable contributions by \$12, holding other variables constant. A \$10,000 increase in salary is positively associated with an \$120 in predicted charitable giving. On average, individuals with higher dividend earnings are expected to donate more, with every \$1,000 increase in mean dividend income associated with additional \$54 in charitable contributions. The model captures a U-shaped relationship between mean AGI and mean charitable donations. For instance, at very low AGI levels of \$15,000, individuals may have significant financial constraints. As their income slightly rises to \$25,000, they might still be focused on meeting basic needs, and charitable giving might remain relatively low or even decrease as they have less disposable income after taking on new expenses. As income continues to increase to \$50,000 or \$75,000, individuals might have more discretionary income, and their charitable giving could increase at an increasing rate. This is because the initial negative effect of AGI on giving is eventually overcome by the positive effect of the squared AGI term as income grows.
+On average, individuals with higher dividend earnings are expected to donate more, with every \$1,000 increase in mean dividend income associated with additional \$49 in charitable contributions. The model captures a U-shaped relationship between mean AGI and mean charitable donations, having a positive coefficient for the squared term for mean AGI. For instance, at very low AGI levels of \$15,000, individuals may have significant financial constraints. As their income slightly rises to \$25,000, they might still be focused on meeting basic needs, and charitable giving might remain relatively low or even decrease as they have less disposable income after taking on new expenses. As income continues to increase to \$50,000 or \$75,000, individuals might have more discretionary income, and their charitable giving could increase at an increasing, non-linear rate. Although we see positive correlations between charitable contributions with mean cap gain and mean rent royalty, we lack sufficient evidence for the relationship to exist in the larger population.
 
-In a broader sense, these findings indicate that charitable giving is a complex behavior influenced by a combination of factors. Stable income, such as salary, and income from investments, such as dividends and capital gains, both play a role. The results corroborate our initial hypothesis of non-linear, U-shaped relationship between AGI and charitable contributions. These results may be useful for charitable organizations and researchers exploring complex dynamics associated with charitable behaviors.
+In a broader sense, these findings indicate that charitable giving is a complex behavior influenced by a combination of factors. Stable income, and income from investments, such as dividends, both play a role. The results corroborate our initial hypothesis of non-linear, U-shaped relationship between AGI and charitable contributions. These results may be useful for charitable organizations and researchers exploring complex dynamics associated with charitable behaviors.
 
 \newpage
 
@@ -587,6 +588,8 @@ var_labels <- c("Mean AGI", "Mean AGI**2", "Log(Mean AGI)", "Log(Mean AGI**2)", 
 
 m3 <- lm(mean_charitable_contributation_per_return ~ log(mean_agi_per_return) + I(log(mean_agi_per_return)^2), data = confirmation_df)
 
+m5 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return + I(mean_agi_per_return^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return + mean_salary_per_salary_return, data = confirmation_df)
+
 m6 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return + I(mean_agi_per_return^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return + mean_salary_per_salary_return + total_net_investment_income_tax_amount, data = confirmation_df)
 
 m7 <- lm(mean_charitable_contributation_per_return ~ mean_agi_per_return + I(mean_agi_per_return^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return + mean_salary_per_salary_return + total_net_investment_income_tax_amount + mean_tax_payment_per_return, data = confirmation_df)
@@ -596,12 +599,14 @@ m8 <- lm(mean_charitable_contributation_per_return ~ log(mean_agi_per_return) + 
 m9 <- lm(mean_charitable_contributation_per_return ~ log(mean_agi_per_return) + I(log(mean_agi_per_return)^2) + mean_dividend_per_dividend_return + mean_capgain_per_capgain_return + mean_rent_royalty_per_rent_royalty_return + mean_salary_per_salary_return + total_net_investment_income_tax_amount + mean_tax_payment_per_return, data = confirmation_df)
 
 vcov3 <- vcovHC(m3, type = "HC3")
+vcov5 <- vcovHC(m5, type = "HC3")
 vcov6 <- vcovHC(m6, type = "HC3")
 vcov7 <- vcovHC(m7, type = "HC3")
 vcov8 <- vcovHC(m8, type = "HC3")
 vcov9 <- vcovHC(m9, type = "HC3")
 
 se3 <- get_robust_se(vcov3)
+se5 <- get_robust_se(vcov5)
 se6 <- get_robust_se(vcov6)
 se7 <- get_robust_se(vcov7)
 se8 <- get_robust_se(vcov8)
@@ -609,13 +614,13 @@ se9 <- get_robust_se(vcov9)
 
 
 
-stargazer(m1, m3, m6, m7, m8, m9,
+stargazer(m1, m3, m5, m6, m7, m8, m9,
   type = ifelse(knitr::is_latex_output(),"latex", "html"),
   # type = "text",
   header = F,
-  se = list(se1, se3, se6, se7, se8, se9),
+  se = list(se1, se3, se5, se6, se7, se8, se9),
   column.sep.width = ".001pt",
-  column.labels = c("(1)", "(3)", "(6)", "(7)", "(8)", "(9)"),
+  column.labels = c("(1)", "(3)", "(5)", "(6)", "(7)", "(8)", "(9)"),
   model.numbers = F,
   font.size = "tiny",
   covariate.labels = var_labels,
@@ -627,20 +632,20 @@ stargazer(m1, m3, m6, m7, m8, m9,
 show_F_in_two_lines()
 ```
 
-Model uses log(mean AGI) and its squared term, also suggesting a non-linear relationship between income and charitable giving, similar to the findings in the main models. Both coefficients are statistically significant. Because of the log transformation, the coefficients are interpreted as elasticities. The adjusted R-squared of 0.644 indicates that Model 3 explains 64.4% of the variance in charitable giving, showing that even when AGI is log-transformed, it remains a significant predictor of donations. Models 6, 7, 8, and 9 show that including wealth/investment, salary, and tax-related variables further improves the model's ability to explain charitable contributions, though some variables like rent royalty and tax payments are not always significant. The adjusted R-squared values for these models are:
+Model uses log(mean AGI) and its squared term, also suggesting a non-linear relationship between income and charitable giving, similar to the findings in the main models. Both coefficients are statistically significant. Because of the log transformation, the coefficients are interpreted as elasticities. The adjusted R-squared of 0.644 indicates that Model 3 explains 64.4% of the variance in charitable giving, showing that even when AGI is log-transformed, it remains a significant predictor of donations. Models 5 through 9 show that including wealth/investment, salary, and tax-related variables further improves the model's ability to explain charitable contributions, though some variables like rent royalty and tax payments are not always significant.
 
-Model 6 has an adjusted R-squared of 0.792 (indicating it explains 79.2% of the variance). This shows that by adding more variables, the explanatory power of the model increases compared to the earlier models. Model 7 has an adjusted R-squared of 0.792 (indicating it also explains 79.2% of the variance). This suggests that Model 7, with its specific set of additional variables, explains a similar amount of variance as Model 6. Model 8 uses log(mean AGI) and its squared term and has an adjusted R-squared of 0.762 (indicating it explains 76.2% of the variance). This indicates that using the log of AGI in this model results in slightly lower explanatory power than Models 6 and 7. Model 9 uses log(mean AGI) and its squared term, and also includes mean dividend, mean campgain, mean rent royalty, and mean salary. It has an adjusted R-squared of 0.770 (indicating it explains 77.0% of the variance). This shows that even with the inclusion of several income variables, the model's explanatory power is still slightly lower than Models 6 and 7. While Models 6 and 7 exhibit slightly higher R-squared values shown in the appendix, we found Model 5 as a more suitable choice due to its balance of strong explanatory power and greater parsimony.
+Model 5 and 6 has an adjusted R-squared of 0.78 and 0.792 respectively, explaining 80% and 79.2% of the variance. This shows that by adding more variables, the explanatory power of the model increases compared to the earlier models. Model 7 has an adjusted R-squared of 0.792 (indicating it also explains 79.2% of the variance). This suggests that Model 7, with its specific set of additional variables, explains a similar amount of variance as Model 6. Model 8 uses log(mean AGI) and its squared term and has an adjusted R-squared of 0.762 (indicating it explains 76.2% of the variance). This indicates that using the log of AGI in this model results in slightly lower explanatory power than Models 6 and 7. Model 9 uses log(mean AGI) and its squared term, and also includes mean dividend, mean campgain, mean rent royalty, and mean salary. It has an adjusted R-squared of 0.770 (indicating it explains 77.0% of the variance). This shows that even with the inclusion of several income variables, the model's explanatory power is still slightly lower than Models 6 and 7. While Models 5 though 7 exhibit slightly higher R-squared values than model 4, we discovered that they show vif value for mean AGI above 20, indicating a high multicollinearity between mean AGI and mean salary. Thus, we find model 4 as a suitable choice due to its balance of strong explanatory power and greater parsimony.
 
 ### 3. Residuals - vs - Fitted Values Plots
 
-```{r, fig.height=2.7}
+```{r, fig.height=2.5}
 # summary(m5)
 confirmation_df <- confirmation_df %>%
-  mutate(model5_predictions = predict(m5),
-         model5_residuals = rstudent(m5))
+  mutate(model4_predictions = predict(m4),
+         model4_residuals = rstudent(m4))
 
 plot1 <- confirmation_df %>%
-  ggplot(aes(x = mean_agi_per_return, y = model5_residuals)) +
+  ggplot(aes(x = mean_agi_per_return, y = model4_residuals)) +
   geom_point(alpha = .3) + stat_smooth() +
   labs(x = "Mean AGI \nper Return", y = "Model Residuals") +
   theme(axis.text.x = element_text(size = 6),
@@ -650,7 +655,7 @@ plot1 <- confirmation_df %>%
 
 
 plot2 <- confirmation_df %>%
-  ggplot(aes(x = mean_dividend_per_dividend_return, y = model5_residuals)) +
+  ggplot(aes(x = mean_dividend_per_dividend_return, y = model4_residuals)) +
   geom_point(alpha = .3) + stat_smooth() +
   labs(x = "Mean Dividend \nper Return", y = "Model Residuals") +
   theme(axis.text.x = element_text(size = 6),
@@ -659,7 +664,7 @@ plot2 <- confirmation_df %>%
         axis.title.y = element_text(size = 7))
 
 plot3 <- confirmation_df %>%
-  ggplot(aes(x = mean_capgain_per_capgain_return, y = model5_residuals)) +
+  ggplot(aes(x = mean_capgain_per_capgain_return, y = model4_residuals)) +
   geom_point(alpha = .3) + stat_smooth() +
   labs(x = "Mean Capgain \nper Return", y = "Model Residuals") +
   theme(axis.text.x = element_text(size = 5),
@@ -668,7 +673,7 @@ plot3 <- confirmation_df %>%
         axis.title.y = element_text(size = 7))
 
 plot4 <- confirmation_df %>%
-  ggplot(aes(x = mean_rent_royalty_per_rent_royalty_return, y = model5_residuals)) +
+  ggplot(aes(x = mean_rent_royalty_per_rent_royalty_return, y = model4_residuals)) +
   geom_point(alpha = .3) + stat_smooth() +
   labs(x = "Mean Rent Royalty \nper Return", y = "Model Residuals") +
   theme(axis.text.x = element_text(size = 5),
@@ -678,7 +683,7 @@ plot4 <- confirmation_df %>%
 
 
 plot5 <- confirmation_df %>%
-  ggplot(aes(x = mean_salary_per_salary_return, y = model5_residuals)) +
+  ggplot(aes(x = mean_salary_per_salary_return, y = model4_residuals)) +
   geom_point(alpha = .3) + stat_smooth() +
   labs(x = "Mean Salary \nper Return", y = "Model Residuals") +
   theme(axis.text.x = element_text(size = 5),
@@ -688,7 +693,7 @@ plot5 <- confirmation_df %>%
 
 
 plot6 <- confirmation_df %>%
-  ggplot(aes(x = model5_predictions, y = model5_residuals)) +
+  ggplot(aes(x = model4_predictions, y = model4_residuals)) +
   geom_point(alpha = .3) + stat_smooth() +
   labs(x = "Model Predictions", y = "Model Residuals")
 
