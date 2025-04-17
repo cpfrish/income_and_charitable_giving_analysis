@@ -39,6 +39,8 @@ library(Metrics)
 library(ggplot2); theme_set(theme_classic())
 library(knitr)
 library(tidyverse)
+library(scales)
+library(broom)
 ```
 
 ```{r include=FALSE}
@@ -365,20 +367,13 @@ for (i in seq_along(model_list)) {
 #### Homoskedasticity
 
 ```{r}
-# Load libraries
-library(lmtest)
-library(dplyr)
-library(broom)
-library(knitr)
-library(scales)
-library(ggplot2) # Added ggplot2 for plotting
+
 
 # --- Step 1: Run Breusch-Pagan Test for all models and create a table ---
 
 bp_results_list <- list()
-
-# Check if model_list exists and has elements
-if (exists("model_list") && length(model_list) > 0) {
+if (exists("model_list") && length(model_list) > 0)
+{
   for (i in 1:length(model_list)) {
     model_name <- names(model_list)[i]
     if (is.null(model_name)) {
@@ -411,12 +406,10 @@ if (exists("model_list") && length(model_list) > 0) {
   )
 
 } else {
-  print("No models found in 'model_list'. Please ensure your models are defined and added to the list.")
+print("No successful Breusch-Pagan test results were collected.")
 }
-
-# visualize the p-values from the BP test table
-
-if (exists("bp_results_table")) {
+## visualize the p-values from the BP test table
+ {
 
   # Define the significance level
   alpha <- 0.05
@@ -448,9 +441,7 @@ if (exists("bp_results_table")) {
 
   print(plot_bp_pvalues_log)
 
-} else {
-  print("Error: 'bp_results_table' not found. Cannot generate plot.")
-}
+} 
 ```
 
 #### Assumptions Summary
@@ -590,17 +581,17 @@ stargazer(m1, m6, m7, m8, m9, type = "latex",
 ### Results & Discussion
 
 <!-- #region -->
-All models significantly predict mean charitable contributions (p < 0.001). Models incorporating various income sources generally exhibit higher explanatory power compared to the baseline models relying solely on AGI. Models 4 and 5, including wealth/investment income and salary, show higher explanatory power than Models 1 and 2 (which only include AGI and AGI squared). Specifically, Model 1 (mean AGI) explains 60.2%, while Model 2 (with AGI squared) increases this to 70.6%. Adding wealth/investment income (Model 4) further increases it to 78.5%. This suggests income, wealth/investment, significantly influence charitable giving. Models 5, 6, and 7 after including salary ans tax-related variables reaches 79.0%-79.2%. However, they violate the colinaraity assumption by looking at the VIF score. Model 8 exibit a 72.1% of adjusted R-squared. After aessing all the linear regression assumptions and performance, we think Model 4 may be a more suitable choice due to its balance of strong explanatory power and least severity on the assumptions violations.
+All models significantly predict mean charitable contributions (p < 0.001). Models incorporating multiple income sources generally exhibit higher explanatory power compared to the baseline models relying solely on AGI. Models 4 and 5, including wealth/investment income and salary, show higher explanatory power than Models 1 and 2 (which only include AGI and AGI squared). Specifically, Model 1 (mean AGI) explains 60.2% of the variance, while Model 2 (with AGI squared) increases this to 70.6%. Adding wealth/investment income (Model 4) further increases it to 78.5%. This suggests income, wealth/investment, significantly influence charitable giving. Models 5, 6, and 7 after including salary and tax-related variables reached 79.0%-79.2%. However, these exhibit significant multicollinearity as shown by their high VIF scores. Model 8 shows a 72.1% of adjusted R-squared. After assessing all of the linear regression assumptions and performance, we believe Model 4 may be a more suitable choice due to its balance of strong explanatory power and lesser degree of assumptions violations.
 
-Here is a practical example using model 4 coefficients:
+Here is a practical example using model 4's coefficients:
 For every \\$1,000 increase in mean dividend income, charitable contributions are predicted to increase by \\$49, suggesting individuals with higher dividend earnings are, on average, expected to donate more, highlighting the influence of investment income on charitable giving. 
 ###### [To be filled: Impact on AGI]
 
 
 In a broader sense, these findings indicate that charitable giving is a complex behavior influ
-enced by a combination of factors. Stable income, such as salary, and income from investments,
+enced by a variety of predictors. Stable income, such as salary, and income from investments,
  such as dividends and capital gains, both play a role. The results corroborate our initial hy
-pothesis of non-linear, U-shaped relationship between AGI and charitable contributions. These
+pothesis of a non-linear, U-shaped relationship between AGI and charitable contributions. These
  results may be useful for charitable organizations and researchers exploring complex dynamics
  associated with charitable behaviors.
 <!-- #endregion -->
