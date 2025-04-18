@@ -746,6 +746,8 @@ In a broader sense, these findings indicate that charitable giving is a complex 
 
 -   Link to the Google drive with the data sets downloaded from the sites above: <https://drive.google.com/drive/folders/12la_DQTyAJiNlq99ZdSQrpvSMdEPky5e?usp=sharing>
 
+-   Link to Github repo: <https://github.com/mids-w203/Lab02_section03_c_w_f>
+
 ### 2. List of the model specifications
 
 \small
